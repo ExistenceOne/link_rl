@@ -452,7 +452,7 @@ class PPO:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "BipedalWalkerHardcore-v3"
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름

@@ -50,6 +50,6 @@ def main_play(num_episodes: int, env_name: str) -> None:
 if __name__ == "__main__":
     NUM_EPISODES = 3
     # ENV_NAME = "Ant-v5"
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "BipedalWalkerHardcore-v3"
 
     main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME)

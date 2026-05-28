@@ -255,7 +255,7 @@ class PPO:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "BipedalWalkerHardcore-v3"
 
     env = gym.make(ENV_NAME)
     test_env = gym.make(ENV_NAME)

@@ -319,9 +319,7 @@ class SAC:
 
 def main() -> None:
     print("TORCH VERSION:", torch.__version__)
-    # ENV_NAME = "Ant-v5"
-    # ENV_NAME = "HalfCheetah-v5"
-    ENV_NAME = "Pendulum-v1"
+    ENV_NAME = "BipedalWalkerHardcore-v3"
 
     # env
     env = gym.make(ENV_NAME)

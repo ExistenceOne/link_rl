@@ -57,7 +57,7 @@ class PPO:
         total_train_start_time = time.time()
 
         validation_episode_reward_avg = -200
-        policy_loss = critic_loss = mu_v = avg_std_v = avg_action = 0.0
+        actor_loss = critic_loss = mu_v = avg_std_v = avg_action = 0.0
         approx_kl = clip_frac = entropy = action_clip_frac = 0.0
 
         is_terminated = False
@@ -88,7 +88,7 @@ class PPO:
                 done = terminated or truncated
 
                 if self.time_steps % self.batch_size == 0:
-                    policy_loss, critic_loss, mu_v, avg_std_v, avg_action, approx_kl, clip_frac, entropy, _ = self.train()
+                    actor_loss, critic_loss, mu_v, avg_std_v, avg_action, approx_kl, clip_frac, entropy, _ = self.train()
                     self.buffer.clear()
 
                 if self.time_steps % self.validation_time_steps_interval == 0:
@@ -112,7 +112,7 @@ class PPO:
                         self.log_wandb(
                             validation_episode_reward_avg,
                             episode_reward,
-                            policy_loss,
+                            actor_loss,
                             critic_loss,
                             mu_v,
                             avg_std_v,
@@ -125,7 +125,7 @@ class PPO:
                 print(
                     "[Episode {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
                     "Episode Reward: {:>9.3f},".format(episode_reward),
-                    "Policy Loss: {:>7.3f},".format(policy_loss),
+                    "Actor Loss: {:>7.3f},".format(actor_loss),
                     "Critic Loss: {:>7.3f},".format(critic_loss),
                     "Approx KL: {:>7.4f},".format(approx_kl),
                     "Clip Frac: {:>7.4f},".format(clip_frac),
@@ -140,7 +140,7 @@ class PPO:
                         self.log_wandb(
                             validation_episode_reward_avg,
                             episode_reward,
-                            policy_loss,
+                            actor_loss,
                             critic_loss,
                             mu_v,
                             avg_std_v,
@@ -159,7 +159,7 @@ class PPO:
         self,
         validation_episode_reward_avg: float,
         episode_reward: float,
-        policy_loss: float,
+        actor_loss: float,
         critic_loss: float,
         mu_v: float,
         avg_std_v: float,
@@ -172,7 +172,7 @@ class PPO:
                     self.validation_num_episodes
                 ): validation_episode_reward_avg,
                 "[TRAIN] Episode Reward": episode_reward,
-                "[TRAIN] Policy Loss": policy_loss,
+                "[TRAIN] Actor Loss": actor_loss,
                 "[TRAIN] Critic Loss": critic_loss,
                 "[TRAIN] mu_v": mu_v,
                 "[TRAIN] avg_std_v": avg_std_v,

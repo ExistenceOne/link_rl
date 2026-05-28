@@ -235,10 +235,14 @@ class PPO:
         mu, std = self.actor.forward(observations)
         dist = Normal(mu, std)
         action_log_probs = dist.log_prob(value=actions).sum(dim=-1)
-        ratio = torch.exp(action_log_probs - old_action_log_probs)
 
-        approx_kl = (old_action_log_probs - action_log_probs).mean().item()
-        clip_frac = ((ratio - 1.0).abs() > self.ppo_clip_coefficient).float().mean().item()
+        with torch.no_grad():
+            log_ratio = action_log_probs - old_action_log_probs
+            ratio = torch.exp(log_ratio)
+
+            approx_kl = ((ratio - 1.0) - log_ratio).mean().item()
+            clip_frac = ((ratio - 1.0).abs() > self.ppo_clip_coefficient).float().mean().item()
+
         entropy = dist.entropy().mean().item()
 
         return (

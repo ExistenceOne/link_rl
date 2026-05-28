@@ -292,7 +292,7 @@ def worker_loop(
 
             old_mu, old_std = self.local_actor.forward(observations)
             old_dist = Normal(old_mu, old_std)
-            old_action_log_probs = old_dist.log_prob(value=actions).squeeze(dim=-1)
+            old_action_log_probs = old_dist.log_prob(value=actions).sum(dim=-1)
 
             for _ in range(self.ppo_epochs):
                 values = self.local_critic(observations).squeeze(dim=-1)
@@ -307,7 +307,7 @@ def worker_loop(
                 # Actor Loss computing
                 mu, std = self.local_actor.forward(observations)
                 dist = Normal(mu, std)
-                action_log_probs = dist.log_prob(value=actions).squeeze(dim=-1)
+                action_log_probs = dist.log_prob(value=actions).sum(dim=-1)
 
                 ratio = torch.exp(action_log_probs - old_action_log_probs.detach())
 
@@ -317,8 +317,7 @@ def worker_loop(
                 )
                 ratio_advantages_sum = torch.min(ratio_advantages, clipped_ratio_advantages).sum()
 
-                entropy = dist.entropy().squeeze(dim=-1)
-                entropy_sum = entropy.sum()
+                entropy_sum = dist.entropy().sum(dim=-1).sum()
 
                 actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
 
@@ -394,8 +393,8 @@ class PPO:
         self.num_workers = min(config["num_workers"], mp.cpu_count() - 1)
 
         # Initialize global models and optimizers
-        self.global_actor = Actor(n_features=3, n_actions=1).share_memory()
-        self.global_critic = Critic(n_features=3).share_memory()
+        self.global_actor = Actor(n_features=24, n_actions=4).share_memory()
+        self.global_critic = Critic(n_features=24).share_memory()
 
         self.global_actor_optimizer = SharedAdam(self.global_actor.parameters(), lr=config["learning_rate"])
         self.global_critic_optimizer = SharedAdam(self.global_critic.parameters(), lr=config["learning_rate"])
@@ -456,18 +455,18 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 1,                                   # 동시 수행 Worker Process 수
+        "num_workers": 8,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "learning_rate": 0.0003,                            # 학습율
+        "learning_rate": 0.0001,                            # 학습율
         "gamma": 0.99,                                      # 감가율
         "entropy_beta": 0.03,                               # 엔트로피 가중치
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
         "validation_episodes_interval": 100,   # 검증 사이 마다 각 훈련 time steps 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -100,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 300,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True

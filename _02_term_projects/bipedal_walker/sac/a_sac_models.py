@@ -94,7 +94,7 @@ class GaussianPolicy(nn.Module):
 
 
 class SoftQNetwork(nn.Module):
-    def __init__(self, n_features: int = 3, n_actions: int = 1, hidden_dim=256):
+    def __init__(self, n_features: int = 24, n_actions: int = 4, hidden_dim=256):
         super().__init__()
         self.fc1_1 = nn.Linear(n_features + n_actions, hidden_dim)
         self.fc1_2 = nn.Linear(hidden_dim, hidden_dim)

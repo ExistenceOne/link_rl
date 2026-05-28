@@ -42,10 +42,10 @@ class PPO:
         self.validation_num_episodes = config["validation_num_episodes"]
         self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
 
-        self.actor = Actor(n_features=3, n_actions=1)
+        self.actor = Actor(n_features=24, n_actions=4)
         self.actor_optimizer = optim.Adam(self.actor.parameters(), lr=self.learning_rate)
 
-        self.critic = Critic(n_features=3)
+        self.critic = Critic(n_features=24)
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.learning_rate)
 
         self.buffer = Buffer()
@@ -189,7 +189,7 @@ class PPO:
         # Compute old log probs before any parameter updates
         old_mu, old_std = self.actor.forward(observations)
         old_dist = Normal(old_mu, old_std)
-        old_action_log_probs = old_dist.log_prob(value=actions).squeeze(dim=-1).detach()
+        old_action_log_probs = old_dist.log_prob(value=actions).sum(dim=-1).detach()
 
         for _ in range(self.ppo_epochs):
             # CRITIC UPDATE
@@ -203,7 +203,7 @@ class PPO:
             # ACTOR UPDATE with clipped PPO objective
             mu, std = self.actor.forward(observations)
             dist = Normal(mu, std)
-            action_log_probs = dist.log_prob(value=actions).squeeze(dim=-1)
+            action_log_probs = dist.log_prob(value=actions).sum(dim=-1)
 
             ratio = torch.exp(action_log_probs - old_action_log_probs)
 
@@ -213,8 +213,7 @@ class PPO:
             )
             ratio_advantages_sum = torch.min(ratio_advantages, clipped_ratio_advantages).sum()
 
-            entropy = dist.entropy().squeeze(dim=-1)
-            entropy_sum = entropy.sum()
+            entropy_sum = dist.entropy().sum(dim=-1).sum()
 
             actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
 
@@ -266,13 +265,13 @@ def main() -> None:
         "ppo_epochs": 10,                           # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                # PPO Ratio Clip Coefficient
         "batch_size": 256,                          # 훈련시 배치에서 한번에 가져오는 배치 사이즈
-        "learning_rate": 0.0003,                    # 학습율
+        "learning_rate": 0.0001,                    # 학습율
         "gamma": 0.99,                              # 감가율
         "entropy_beta": 0.03,                       # 엔트로피 가중치
         "print_episode_interval": 20,               # Episode 통계 출력에 관한 에피소드 간격
         "validation_time_steps_interval": 25_000,   # 검증 사이 마다 각 훈련 time steps 간격
         "validation_num_episodes": 3,               # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": -100,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "episode_reward_avg_solved": 300,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True

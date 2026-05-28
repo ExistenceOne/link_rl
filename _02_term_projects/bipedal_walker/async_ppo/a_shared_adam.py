@@ -5,7 +5,7 @@ class SharedAdam(torch.optim.Adam):
     def __init__(
         self,
         params,  # noqa
-        lr: float = 1e-3,
+        lr: float = 1e-1,
         betas: tuple[float, float] = (0.9, 0.999),
         eps: float = 1e-8,
         weight_decay: float = 0,

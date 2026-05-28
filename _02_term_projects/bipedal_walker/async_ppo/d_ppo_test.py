@@ -30,7 +30,7 @@ def test(env: gym.Env, actor: Actor, num_episodes: int) -> None:
         print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(i, episode_steps, episode_reward))
 
 
-def main_play(num_episodes: int, env_name: gym.Env) -> None:
+def main_play(num_episodes: int, env_name: str) -> None:
     env = gym.make(env_name, render_mode="human")
 
     actor = Actor(n_features=24, n_actions=4)

@@ -18,9 +18,9 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class Actor(nn.Module):
     def __init__(self, n_features: int = 24, n_actions: int = 4):
         super().__init__()
-        self.fc1 = nn.Linear(n_features, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.mu = nn.Linear(128, n_actions)
+        self.fc1 = nn.Linear(n_features, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.mu = nn.Linear(256, n_actions)
 
         # ln_e(x) = 1.0 --> x = e^1.0 = 2.71
         log_std_param = nn.Parameter(torch.full((n_actions,), 1.0))
@@ -45,9 +45,9 @@ class Actor(nn.Module):
         if exploration:
             dist = Normal(loc=mu_v, scale=std_v)
             action = dist.sample()
-            action = torch.clamp(action, min=-1.0, max=1.0).detach().numpy()
+            action = torch.clamp(action, min=-1.0, max=1.0).detach().cpu().numpy()
         else:
-            action = torch.clamp(mu_v, min=-1.0, max=1.0).detach().numpy()
+            action = torch.clamp(mu_v, min=-1.0, max=1.0).detach().cpu().numpy()
 
         return action
 
@@ -60,9 +60,10 @@ class Critic(nn.Module):
 
     def __init__(self, n_features: int = 24):
         super().__init__()
-        self.fc1 = nn.Linear(n_features, 128)
-        self.fc2 = nn.Linear(128, 128)
-        self.fc3 = nn.Linear(128, 1)
+        self.fc1 = nn.Linear(n_features, 256)
+        self.fc2 = nn.Linear(256, 256)
+        self.fc3 = nn.Linear(256, 1)
+        self.to(DEVICE)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if isinstance(x, np.ndarray):

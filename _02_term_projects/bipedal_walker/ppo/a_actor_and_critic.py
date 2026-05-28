@@ -45,9 +45,9 @@ class Actor(nn.Module):
         if exploration:
             dist = Normal(loc=mu_v, scale=std_v)
             action = dist.sample()
-            action = torch.clamp(action, min=-1.0, max=1.0).detach().numpy()
+            action = torch.clamp(action, min=-1.0, max=1.0).detach().cpu().numpy()
         else:
-            action = torch.clamp(mu_v, min=-1.0, max=1.0).detach().numpy()
+            action = torch.clamp(mu_v, min=-1.0, max=1.0).detach().cpu().numpy()
 
         return action
 
@@ -63,6 +63,7 @@ class Critic(nn.Module):
         self.fc1 = nn.Linear(n_features, 128)
         self.fc2 = nn.Linear(128, 128)
         self.fc3 = nn.Linear(128, 1)
+        self.to(DEVICE)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if isinstance(x, np.ndarray):

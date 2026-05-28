@@ -22,8 +22,8 @@ class Actor(nn.Module):
         self.fc2 = nn.Linear(128, 128)
         self.mu = nn.Linear(128, n_actions)
 
-        # ln_e(x) = 1.0 --> x = e^1.0 = 2.71
-        log_std_param = nn.Parameter(torch.full((n_actions,), 1.0))
+        # ln_e(x) = -1.0 --> x = e^-1.0 = 0.37
+        log_std_param = nn.Parameter(torch.full((n_actions,), -1.0))
         self.register_parameter("log_std", log_std_param)
         self.to(DEVICE)
 
@@ -35,7 +35,7 @@ class Actor(nn.Module):
         mu_v = F.tanh(self.mu(x))
 
         std_v = self.log_std.exp()
-        std_v = torch.clamp(std_v, min=2.0, max=50)  # Clamping for numerical stability
+        std_v = torch.clamp(std_v, min=0.05, max=0.5)  # Clamping for numerical stability
 
         return mu_v, std_v
 

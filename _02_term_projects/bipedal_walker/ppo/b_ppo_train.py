@@ -56,7 +56,7 @@ class PPO:
     def train_loop(self) -> None:
         total_train_start_time = time.time()
 
-        validation_episode_reward_avg = -1500
+        validation_episode_reward_avg = -200
         policy_loss = critic_loss = mu_v = avg_std_v = avg_action = 0.0
 
         is_terminated = False
@@ -72,7 +72,7 @@ class PPO:
 
                 action = self.actor.get_action(observation)
 
-                next_observation, reward, terminated, truncated, _ = self.env.step(action * 2)
+                next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
                 episode_reward += reward
 
@@ -241,7 +241,7 @@ class PPO:
             while not done:
                 action = self.actor.get_action(observation, exploration=False)
 
-                next_observation, reward, terminated, truncated, _ = self.test_env.step(action * 2)
+                next_observation, reward, terminated, truncated, _ = self.test_env.step(action)
 
                 episode_reward += reward
                 observation = next_observation

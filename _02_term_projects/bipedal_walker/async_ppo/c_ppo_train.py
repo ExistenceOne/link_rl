@@ -104,7 +104,7 @@ def master_loop(global_actor, shared_stat, run_wandb, global_lock, config):
 
                 while not done:
                     action = self.global_actor.get_action(observation, exploration=False)
-                    next_observation, reward, terminated, truncated, _ = self.test_env.step(action * 2)
+                    next_observation, reward, terminated, truncated, _ = self.test_env.step(action)
                     episode_reward += reward
                     observation = next_observation
                     done = terminated or truncated
@@ -221,7 +221,7 @@ def worker_loop(
                     self.shared_stat.global_time_steps.value += 1
 
                     action = self.local_actor.get_action(observation)
-                    next_observation, reward, terminated, truncated, _ = self.env.step(action * 2)
+                    next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
                     episode_reward += reward
 
@@ -455,7 +455,7 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
-        "num_workers": 8,                                   # 동시 수행 Worker Process 수
+        "num_workers": 6,                                   # 동시 수행 Worker Process 수
         "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
         "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient

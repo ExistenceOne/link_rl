@@ -22,7 +22,7 @@ def test(env: gym.Env, actor: Actor, num_episodes: int) -> None:
             episode_steps += 1
             action = actor.get_action(observation, exploration=False)
 
-            next_observation, reward, terminated, truncated, _ = env.step(action * 2)
+            next_observation, reward, terminated, truncated, _ = env.step(action)
 
             episode_reward += reward
             observation = next_observation

@@ -39,15 +39,20 @@ class Actor(nn.Module):
 
         return mu_v, std_v
 
-    def get_action(self, x: torch.Tensor, exploration: bool = True) -> np.ndarray:
+    def get_action(self, x: torch.Tensor, exploration: bool = True, return_clip_frac: bool = False):
         mu_v, std_v = self.forward(x)
 
         if exploration:
             dist = Normal(loc=mu_v, scale=std_v)
-            action = dist.sample()
-            action = torch.clamp(action, min=-1.0, max=1.0).detach().cpu().numpy()
+            sampled_action = dist.sample()
+            action_clip_frac = ((sampled_action < -1.0) | (sampled_action > 1.0)).float().mean().item()
+            action = torch.clamp(sampled_action, min=-1.0, max=1.0).detach().cpu().numpy()
         else:
             action = torch.clamp(mu_v, min=-1.0, max=1.0).detach().cpu().numpy()
+            action_clip_frac = 0.0
+
+        if return_clip_frac:
+            return action, action_clip_frac
 
         return action
 

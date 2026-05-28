@@ -58,11 +58,14 @@ class PPO:
 
         validation_episode_reward_avg = -200
         policy_loss = critic_loss = mu_v = avg_std_v = avg_action = 0.0
+        approx_kl = clip_frac = entropy = action_clip_frac = 0.0
 
         is_terminated = False
 
         for n_episode in range(1, self.max_num_episodes + 1):
             episode_reward = 0
+            episode_action_clip_frac_sum = 0.0
+            episode_action_clip_frac_count = 0
 
             observation, _ = self.env.reset()
             done = False
@@ -70,7 +73,9 @@ class PPO:
             while not done:
                 self.time_steps += 1
 
-                action = self.actor.get_action(observation)
+                action, sampled_action_clip_frac = self.actor.get_action(observation, return_clip_frac=True)
+                episode_action_clip_frac_sum += sampled_action_clip_frac
+                episode_action_clip_frac_count += 1
 
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
@@ -83,7 +88,7 @@ class PPO:
                 done = terminated or truncated
 
                 if self.time_steps % self.batch_size == 0:
-                    policy_loss, critic_loss, mu_v, avg_std_v, avg_action = self.train()
+                    policy_loss, critic_loss, mu_v, avg_std_v, avg_action, approx_kl, clip_frac, entropy, _ = self.train()
                     self.buffer.clear()
 
                 if self.time_steps % self.validation_time_steps_interval == 0:
@@ -116,11 +121,16 @@ class PPO:
                         )
 
             if n_episode % self.print_episode_interval == 0:
+                action_clip_frac = episode_action_clip_frac_sum / max(1, episode_action_clip_frac_count)
                 print(
                     "[Episode {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
                     "Episode Reward: {:>9.3f},".format(episode_reward),
                     "Policy Loss: {:>7.3f},".format(policy_loss),
                     "Critic Loss: {:>7.3f},".format(critic_loss),
+                    "Approx KL: {:>7.4f},".format(approx_kl),
+                    "Clip Frac: {:>7.4f},".format(clip_frac),
+                    "Entropy: {:>7.4f},".format(entropy),
+                    "Action Clip Frac: {:>7.4f},".format(action_clip_frac),
                     "Training Steps: {:5,}, ".format(self.training_time_steps),
                 )
 
@@ -172,7 +182,7 @@ class PPO:
             }
         )
 
-    def train(self) -> tuple[float, float, float, float, float]:
+    def train(self) -> tuple[float, float, float, float, float, float, float, float, float]:
         self.training_time_steps += 1
 
         observations, actions, next_observations, rewards, dones = self.buffer.get()
@@ -190,6 +200,7 @@ class PPO:
         old_mu, old_std = self.actor.forward(observations)
         old_dist = Normal(old_mu, old_std)
         old_action_log_probs = old_dist.log_prob(value=actions).sum(dim=-1).detach()
+        action_clip_frac = ((actions < -1.0) | (actions > 1.0)).float().mean().item()
 
         for _ in range(self.ppo_epochs):
             # CRITIC UPDATE
@@ -211,17 +222,36 @@ class PPO:
             clipped_ratio_advantages = (
                 torch.clamp(ratio, 1 - self.ppo_clip_coefficient, 1 + self.ppo_clip_coefficient) * advantages.detach()
             )
-            ratio_advantages_sum = torch.min(ratio_advantages, clipped_ratio_advantages).sum()
+            ratio_advantages = torch.min(ratio_advantages, clipped_ratio_advantages).mean()
 
-            entropy_sum = dist.entropy().sum(dim=-1).sum()
+            entropy = dist.entropy().sum(dim=-1).mean()
 
-            actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
+            actor_loss = -1.0 * ratio_advantages - 1.0 * entropy * self.entropy_beta
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
             self.actor_optimizer.step()
 
-        return actor_loss.item(), critic_loss.item(), mu.mean().item(), std.mean().item(), actions.mean().item()
+        mu, std = self.actor.forward(observations)
+        dist = Normal(mu, std)
+        action_log_probs = dist.log_prob(value=actions).sum(dim=-1)
+        ratio = torch.exp(action_log_probs - old_action_log_probs)
+
+        approx_kl = (old_action_log_probs - action_log_probs).mean().item()
+        clip_frac = ((ratio - 1.0).abs() > self.ppo_clip_coefficient).float().mean().item()
+        entropy = dist.entropy().mean().item()
+
+        return (
+            actor_loss.item(),
+            critic_loss.item(),
+            mu.mean().item(),
+            std.mean().item(),
+            actions.mean().item(),
+            approx_kl,
+            clip_frac,
+            entropy,
+            action_clip_frac,
+        )
 
     def model_save(self, validation_episode_reward_avg: float) -> None:
         filename = "ppo_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
@@ -274,7 +304,7 @@ def main() -> None:
         "episode_reward_avg_solved": 300,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
-    use_wandb = True
+    use_wandb = False
     ppo = PPO(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
     ppo.train_loop()
 

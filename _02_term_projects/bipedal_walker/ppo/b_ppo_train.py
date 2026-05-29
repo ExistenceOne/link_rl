@@ -296,7 +296,7 @@ def main() -> None:
     config = {
         "env_name": ENV_NAME,                       # 환경의 이름
         "max_num_episodes": 200_000,                # 훈련을 위한 최대 에피소드 횟수
-        "ppo_epochs": 10,                           # PPO 내부 업데이트 횟수
+        "ppo_epochs": 4,                           # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                # PPO Ratio Clip Coefficient
         "batch_size": 256,                          # 훈련시 배치에서 한번에 가져오는 배치 사이즈
         "learning_rate": 0.0001,                    # 학습율
@@ -308,7 +308,7 @@ def main() -> None:
         "episode_reward_avg_solved": 300,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
-    use_wandb = False
+    use_wandb = True
     ppo = PPO(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
     ppo.train_loop()
 

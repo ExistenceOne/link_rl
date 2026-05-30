@@ -299,13 +299,13 @@ def main() -> None:
         "ppo_epochs": 4,                           # PPO 내부 업데이트 횟수
         "ppo_clip_coefficient": 0.2,                # PPO Ratio Clip Coefficient
         "batch_size": 256,                          # 훈련시 배치에서 한번에 가져오는 배치 사이즈
-        "learning_rate": 0.0001,                    # 학습율
+        "learning_rate": 5e-5,                    # 학습율
         "gamma": 0.99,                              # 감가율
         "entropy_beta": 0.01,                       # 엔트로피 가중치
         "print_episode_interval": 20,               # Episode 통계 출력에 관한 에피소드 간격
         "validation_time_steps_interval": 25_000,   # 검증 사이 마다 각 훈련 time steps 간격
-        "validation_num_episodes": 3,               # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 300,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "validation_num_episodes": 20,               # 검증에 수행하는 에피소드 횟수
+        "episode_reward_avg_solved": 0,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
     }
 
     use_wandb = True

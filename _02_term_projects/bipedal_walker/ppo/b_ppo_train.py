@@ -12,7 +12,7 @@ import torch.optim as optim
 from torch.distributions import Normal
 
 import wandb
-from a_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, Transition
+from a_actor_and_critic import MODEL_DIR, Actor, Buffer, Critic, RunningNormalizer, Transition
 
 
 class PPO:
@@ -36,7 +36,9 @@ class PPO:
         self.batch_size = config["batch_size"]
         self.learning_rate = config["learning_rate"]
         self.gamma = config["gamma"]
+        self.gae_lambda = config["gae_lambda"]
         self.entropy_beta = config["entropy_beta"]
+        self.max_grad_norm = config["max_grad_norm"]
         self.print_episode_interval = config["print_episode_interval"]
         self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
@@ -49,6 +51,7 @@ class PPO:
         self.critic_optimizer = optim.Adam(self.critic.parameters(), lr=self.learning_rate)
 
         self.buffer = Buffer()
+        self.obs_normalizer = RunningNormalizer(shape=24)
 
         self.time_steps = 0
         self.training_time_steps = 0
@@ -68,6 +71,8 @@ class PPO:
             episode_action_clip_frac_count = 0
 
             observation, _ = self.env.reset()
+            self.obs_normalizer.update(observation)
+            observation = self.obs_normalizer.normalize(observation)
             done = False
 
             while not done:
@@ -80,6 +85,9 @@ class PPO:
                 next_observation, reward, terminated, truncated, _ = self.env.step(action)
 
                 episode_reward += reward
+
+                self.obs_normalizer.update(next_observation)
+                next_observation = self.obs_normalizer.normalize(next_observation)
 
                 transition = Transition(observation, action, next_observation, reward, terminated)
                 self.buffer.append(transition)
@@ -187,14 +195,23 @@ class PPO:
 
         observations, actions, next_observations, rewards, dones = self.buffer.get()
 
-        # TD(0) target values and advantage computation
-        values = self.critic(observations).squeeze(dim=-1)
-        next_values = self.critic(next_observations).squeeze(dim=-1)
-        next_values[dones] = 0.0
-        target_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+        # GAE computation with no gradient
+        with torch.no_grad():
+            values = self.critic(observations).squeeze(dim=-1)
+            next_values = self.critic(next_observations).squeeze(dim=-1)
+            next_values[dones] = 0.0
 
-        advantages = target_values - values
-        advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
+            deltas = rewards.squeeze(dim=-1) + self.gamma * next_values - values
+            not_done = (~dones).float()
+
+            advantages = torch.zeros_like(deltas)
+            gae = 0.0
+            for t in reversed(range(len(deltas))):
+                gae = deltas[t] + self.gamma * self.gae_lambda * not_done[t] * gae
+                advantages[t] = gae
+
+            returns = advantages + values
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-7)
 
         # Compute old log probs before any parameter updates
         old_mu, old_std = self.actor.forward(observations)
@@ -205,10 +222,11 @@ class PPO:
         for _ in range(self.ppo_epochs):
             # CRITIC UPDATE
             values = self.critic(observations).squeeze(dim=-1)
-            critic_loss = F.mse_loss(target_values.detach(), values)
+            critic_loss = F.mse_loss(returns.detach(), values)
 
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
             self.critic_optimizer.step()
 
             # ACTOR UPDATE with clipped PPO objective
@@ -226,10 +244,11 @@ class PPO:
 
             entropy = dist.entropy().sum(dim=-1).mean()
 
-            actor_loss = -1.0 * ratio_advantages - 1.0 * entropy * self.entropy_beta
+            actor_loss = -1.0 * ratio_advantages - self.entropy_beta * entropy
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
             self.actor_optimizer.step()
 
         mu, std = self.actor.forward(observations)
@@ -270,6 +289,7 @@ class PPO:
             episode_reward = 0
 
             observation, _ = self.test_env.reset()
+            observation = self.obs_normalizer.normalize(observation)
             done = False
 
             while not done:
@@ -278,7 +298,7 @@ class PPO:
                 next_observation, reward, terminated, truncated, _ = self.test_env.step(action)
 
                 episode_reward += reward
-                observation = next_observation
+                observation = self.obs_normalizer.normalize(next_observation)
                 done = terminated or truncated
 
             episode_reward_lst[i] = episode_reward
@@ -301,7 +321,9 @@ def main() -> None:
         "batch_size": 2048,                          # 훈련시 배치에서 한번에 가져오는 배치 사이즈
         "learning_rate": 3e-4,                    # 학습율
         "gamma": 0.99,                              # 감가율
-        "entropy_beta": 0.03,                       # 엔트로피 가중치
+        "gae_lambda": 0.95,                         # GAE lambda
+        "entropy_beta": 0.02,                       # 엔트로피 가중치
+        "max_grad_norm": 0.5,                       # Gradient clipping norm
         "print_episode_interval": 20,               # Episode 통계 출력에 관한 에피소드 간격
         "validation_time_steps_interval": 50_000,   # 검증 사이 마다 각 훈련 time steps 간격
         "validation_num_episodes": 10,               # 검증에 수행하는 에피소드 횟수

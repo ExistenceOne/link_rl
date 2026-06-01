@@ -15,6 +15,32 @@ if not os.path.exists(MODEL_DIR):
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+class RunningNormalizer:
+    def __init__(self, shape: int, epsilon: float = 1e-8, clip_range: float = 10.0):
+        self.mean = np.zeros(shape, dtype=np.float64)
+        self.var = np.ones(shape, dtype=np.float64)
+        self.count = 0
+        self.epsilon = epsilon
+        self.clip_range = clip_range
+
+    def update(self, x: np.ndarray) -> None:
+        x = np.atleast_2d(x).astype(np.float64)
+        batch_count = x.shape[0]
+        batch_mean = x.mean(axis=0)
+        batch_var = x.var(axis=0)
+        total = self.count + batch_count
+        delta = batch_mean - self.mean
+        self.mean = self.mean + delta * batch_count / total
+        m_a = self.var * self.count
+        m_b = batch_var * batch_count
+        self.var = (m_a + m_b + delta ** 2 * self.count * batch_count / total) / total
+        self.count = total
+
+    def normalize(self, x: np.ndarray) -> np.ndarray:
+        normalized = (x - self.mean) / np.sqrt(self.var + self.epsilon)
+        return np.clip(normalized, -self.clip_range, self.clip_range).astype(np.float32)
+
+
 class Actor(nn.Module):
     def __init__(self, n_features: int = 24, n_actions: int = 4):
         super().__init__()

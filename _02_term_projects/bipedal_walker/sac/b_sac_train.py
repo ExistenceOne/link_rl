@@ -336,8 +336,8 @@ def main() -> None:
         "soft_update_tau": 0.995,                           # Soft Update Tau
         "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
         "validation_time_steps_interval": 25_000,            # 검증 사이 마다 각 훈련 time steps 간격
-        "validation_num_episodes": 10,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 100,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
+        "episode_reward_avg_solved": 300,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": True                    # Alpha Auto Tuning
     }

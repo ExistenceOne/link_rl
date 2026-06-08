@@ -142,9 +142,20 @@ class ReplayBuffer:
     def clear(self) -> None:
         self.buffer.clear()
 
-    def sample(self, batch_size: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        # Get random index
-        indices = np.random.choice(len(self.buffer), size=batch_size, replace=False)
+    def sample(
+        self, batch_size: int, most_recent: int = None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        buffer_len = len(self.buffer)
+
+        # ERE: restrict sampling to the most recent `most_recent` transitions.
+        # The deque stores transitions in arrival order, so the recent ones are at the tail.
+        if most_recent is None or most_recent >= buffer_len:
+            # Get random index over the whole buffer (uniform replay)
+            indices = np.random.choice(buffer_len, size=batch_size, replace=False)
+        else:
+            most_recent = max(most_recent, batch_size)
+            start = buffer_len - most_recent
+            indices = np.random.choice(np.arange(start, buffer_len), size=batch_size, replace=False)
         # Sample
         observations, actions, next_observations, rewards, dones = zip(*[self.buffer[idx] for idx in indices])
 

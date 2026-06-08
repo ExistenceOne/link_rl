@@ -46,6 +46,11 @@ class SAC:
         self.learning_starts = config["learning_starts"]
         self.automatic_entropy_tuning = config["automatic_entropy_tuning"]
 
+        # ERE (Emphasizing Recent Experience, Wang & Ross 2019)
+        self.use_ere = config["use_ere"]
+        self.ere_eta = config["ere_eta"]            # recency emphasis (closer to 1.0 == more uniform)
+        self.ere_min_size = config["ere_min_size"]  # c_min: floor on the recent-window size
+
         n_features = env.observation_space.shape[0]
         n_actions = env.action_space.shape[0]
 
@@ -87,6 +92,7 @@ class SAC:
 
         for n_episode in range(1, self.max_num_episodes + 1):
             episode_reward = 0
+            episode_steps = 0
 
             observation, _ = self.env.reset()
 
@@ -94,6 +100,7 @@ class SAC:
 
             while not done:
                 self.time_steps += 1
+                episode_steps += 1
 
                 if self.time_steps < self.learning_starts:
                     action = self.env.action_space.sample()
@@ -111,7 +118,9 @@ class SAC:
                 observation = next_observation
                 done = terminated or truncated
 
-                if self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
+                # Uniform-replay path: one update every `steps_between_train` env steps.
+                # With ERE the updates are deferred to an end-of-episode burst (see below).
+                if not self.use_ere and self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
                     policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train()
 
                 if self.time_steps % self.validation_time_steps_interval == 0:
@@ -133,6 +142,12 @@ class SAC:
                             entropy,
                             n_episode,
                         )
+
+            # ERE: after each episode of length T, run a burst of T // steps_between_train updates,
+            # each sampling from a progressively shrinking most-recent window of the replay buffer.
+            if self.use_ere and self.time_steps > self.learning_starts and self.replay_buffer.size() > self.batch_size:
+                num_updates = max(1, episode_steps // self.steps_between_train)
+                policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train_ere(num_updates)
 
             if n_episode % self.print_episode_interval == 0:
                 print(
@@ -197,10 +212,31 @@ class SAC:
             }
         )
 
-    def train(self):
+    def train_ere(self, num_updates: int):
+        # N: current number of transitions in the replay buffer.
+        buffer_size = self.replay_buffer.size()
+
+        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = 0.0
+
+        for k in range(num_updates):
+            # c_k = N * eta^(k * 1000 / K), floored at c_min. The k=0 update sees the whole
+            # buffer; later updates focus on increasingly recent experience.
+            if self.ere_eta < 1.0:
+                c_k = int(buffer_size * (self.ere_eta ** (k * 1000.0 / num_updates)))
+                c_k = max(c_k, self.ere_min_size)
+            else:
+                c_k = buffer_size
+
+            policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train(most_recent=c_k)
+
+        return policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy
+
+    def train(self, most_recent: int = None):
         self.training_time_steps += 1
 
-        observations, actions, next_observations, rewards, dones = self.replay_buffer.sample(self.batch_size)
+        observations, actions, next_observations, rewards, dones = self.replay_buffer.sample(
+            self.batch_size, most_recent=most_recent
+        )
 
         ####################
         # Q NETWORK UPDATE #
@@ -339,7 +375,10 @@ def main() -> None:
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         "episode_reward_avg_solved": 300,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "learning_starts": 5000,                            # 충분한 경험 데이터 수집
-        "automatic_entropy_tuning": True                    # Alpha Auto Tuning
+        "automatic_entropy_tuning": True,                   # Alpha Auto Tuning
+        "use_ere": True,                                    # ERE(Emphasizing Recent Experience) 사용 여부
+        "ere_eta": 0.996,                                   # ERE recency 강조 계수 (1.0 에 가까울수록 uniform)
+        "ere_min_size": 5000,                               # ERE 최근 윈도우 최소 크기 (c_min)
     }
 
     use_wandb = True

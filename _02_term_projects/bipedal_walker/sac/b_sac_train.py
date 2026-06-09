@@ -362,23 +362,23 @@ def main() -> None:
     test_env = gym.make(ENV_NAME)
 
     config = {
-        "env_name": ENV_NAME,                               # 환경의 이름
-        "max_num_episodes": 200_000,                        # 훈련을 위한 최대 에피소드 횟수
-        "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "steps_between_train": 16,                          # 훈련 사이의 환경 스텝 수
-        "replay_buffer_size": 1_000_000,                      # 리플레이 버퍼 사이즈
-        "learning_rate": 1e-4,                            # 학습율
-        "gamma": 0.99,                                      # 감가율
-        "soft_update_tau": 0.995,                           # Soft Update Tau
-        "print_episode_interval": 20,                       # Episode 통계 출력에 관한 에피소드 간격
-        "validation_time_steps_interval": 25_000,            # 검증 사이 마다 각 훈련 time steps 간격
-        "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 300,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
-        "learning_starts": 5000,                            # 충분한 경험 데이터 수집
-        "automatic_entropy_tuning": True,                   # Alpha Auto Tuning
-        "use_ere": False,                                    # ERE(Emphasizing Recent Experience) 사용 여부
-        "ere_eta": 0.996,                                   # ERE recency 강조 계수 (1.0 에 가까울수록 uniform)
-        "ere_min_size": 5000,                               # ERE 최근 윈도우 최소 크기 (c_min)
+        "env_name": ENV_NAME,
+        "max_num_episodes": 200_000,
+        "batch_size": 256,
+        "steps_between_train": 1,
+        "replay_buffer_size": 1_000_000,
+        "learning_rate": 5e-4,
+        "gamma": 0.99,
+        "soft_update_tau": 0.99,
+        "print_episode_interval": 20,
+        "validation_time_steps_interval": 25_000,
+        "validation_num_episodes": 3,
+        "episode_reward_avg_solved": 300,
+        "learning_starts": 10_000,
+        "automatic_entropy_tuning": True,
+        "use_ere": False,
+        "ere_eta": 0.996,
+        "ere_min_size": 5_000,
     }
 
     use_wandb = True

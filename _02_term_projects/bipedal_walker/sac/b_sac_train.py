@@ -376,7 +376,7 @@ def main() -> None:
         "episode_reward_avg_solved": 300,                  # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
         "learning_starts": 5000,                            # 충분한 경험 데이터 수집
         "automatic_entropy_tuning": True,                   # Alpha Auto Tuning
-        "use_ere": True,                                    # ERE(Emphasizing Recent Experience) 사용 여부
+        "use_ere": False,                                    # ERE(Emphasizing Recent Experience) 사용 여부
         "ere_eta": 0.996,                                   # ERE recency 강조 계수 (1.0 에 가까울수록 uniform)
         "ere_min_size": 5000,                               # ERE 최근 윈도우 최소 크기 (c_min)
     }

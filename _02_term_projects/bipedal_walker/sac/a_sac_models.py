@@ -173,7 +173,7 @@ class ReplayBuffer:
 
         # Convert to tensor
         observations = torch.tensor(observations, dtype=torch.float32, device=DEVICE)
-        actions = torch.tensor(actions, dtype=torch.int64, device=DEVICE)
+        actions = torch.tensor(actions, dtype=torch.float32, device=DEVICE)
         next_observations = torch.tensor(next_observations, dtype=torch.float32, device=DEVICE)
         rewards = torch.tensor(rewards, dtype=torch.float32, device=DEVICE)
         dones = torch.tensor(dones, dtype=torch.bool, device=DEVICE)

@@ -34,7 +34,9 @@ class SAC:
 
         self.max_num_episodes = config["max_num_episodes"]
         self.batch_size = config["batch_size"]
-        self.learning_rate = config["learning_rate"]
+        self.policy_lr = config["policy_lr"]
+        self.q_lr = config["q_lr"]
+        self.alpha_lr = config["alpha_lr"]
         self.gamma = config["gamma"]
         self.print_episode_interval = config["print_episode_interval"]
         self.validation_time_steps_interval = config["validation_time_steps_interval"]
@@ -50,14 +52,14 @@ class SAC:
         n_actions = env.action_space.shape[0]
 
         self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space)
-        self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=self.learning_rate)
+        self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=self.policy_lr)
 
         self.q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions)
         self.target_q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions)
 
         self.target_q_network.load_state_dict(self.q_network.state_dict())
 
-        self.q_network_optimizer = optim.Adam(self.q_network.parameters(), lr=self.learning_rate)
+        self.q_network_optimizer = optim.Adam(self.q_network.parameters(), lr=self.q_lr)
 
         self.replay_buffer = ReplayBuffer(capacity=self.replay_buffer_size)
 
@@ -65,7 +67,7 @@ class SAC:
             self.target_entropy = -torch.prod(torch.Tensor(env.action_space.shape).to(DEVICE)).item()
             print("TARGET ENTROPY: {0}".format(self.target_entropy))
             self.log_alpha = torch.tensor(0.2, requires_grad=True, device=DEVICE)
-            self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.learning_rate)
+            self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.alpha_lr)
             self.alpha = self.log_alpha.exp().item()
         else:
             self.alpha = 0.2
@@ -80,7 +82,7 @@ class SAC:
     def train_loop(self) -> None:
         self.total_train_start_time = time.time()
 
-        validation_episode_reward_avg = -1500
+        validation_episode_reward_avg = -300
         policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = 0.0
 
         is_terminated = False
@@ -330,18 +332,20 @@ def main() -> None:
     config = {
         "env_name": ENV_NAME,
         "max_num_episodes": 10_000,
+        "learning_starts": 10_000,
         "batch_size": 256,
         "steps_between_train": 1,
         "replay_buffer_size": 1_000_000,
-        "learning_rate": 1e-4,
+        "policy_lr": 1e-4,
+        "q_lr": 1e-4,
+        "alpha_lr": 1e-5,
         "gamma": 0.99,
         "soft_update_tau": 0.995,
-        "print_episode_interval": 10,
         "validation_time_steps_interval": 30_000,
         "validation_num_episodes": 3,
         "episode_reward_avg_solved": 100,
-        "learning_starts": 10_000,
-        "automatic_entropy_tuning": True
+        "automatic_entropy_tuning": True,
+        "print_episode_interval": 10
     }
 
     use_wandb = True

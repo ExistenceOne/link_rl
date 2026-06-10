@@ -51,6 +51,12 @@ class SAC:
         self.ere_eta = config["ere_eta"]            # recency emphasis (closer to 1.0 == more uniform)
         self.ere_min_size = config["ere_min_size"]  # c_min: floor on the recent-window size
 
+        # ES (Evolution Strategies with critic-surrogate fitness)
+        self.use_es = config["use_es"]
+        self.es_num_perturbations = config["es_num_perturbations"]  # K, must be even (antithetic pairs)
+        self.es_sigma = config["es_sigma"]          # parameter noise std
+        self.es_lr = config["es_lr"]                # ES step size
+
         n_features = env.observation_space.shape[0]
         n_actions = env.action_space.shape[0]
 
@@ -86,7 +92,7 @@ class SAC:
         self.total_train_start_time = time.time()
 
         validation_episode_reward_avg = -1500
-        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = 0.0
+        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = es_fitness = 0.0
 
         is_terminated = False
 
@@ -121,7 +127,7 @@ class SAC:
                 # Uniform-replay path: one update every `steps_between_train` env steps.
                 # With ERE the updates are deferred to an end-of-episode burst (see below).
                 if not self.use_ere and self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
-                    policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train()
+                    policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy, es_fitness = self.train()
 
                 if self.time_steps % self.validation_time_steps_interval == 0:
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
@@ -140,6 +146,7 @@ class SAC:
                             alpha_loss,
                             mu,
                             entropy,
+                            es_fitness,
                             n_episode,
                         )
 
@@ -147,7 +154,7 @@ class SAC:
             # each sampling from a progressively shrinking most-recent window of the replay buffer.
             if self.use_ere and self.time_steps > self.learning_starts and self.replay_buffer.size() > self.batch_size:
                 num_updates = max(1, episode_steps // self.steps_between_train)
-                policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train_ere(num_updates)
+                policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy, es_fitness = self.train_ere(num_updates)
 
             if n_episode % self.print_episode_interval == 0:
                 print(
@@ -172,6 +179,7 @@ class SAC:
                             alpha_loss,
                             mu,
                             entropy,
+                            es_fitness,
                             n_episode,
                         )
                 break
@@ -191,6 +199,7 @@ class SAC:
         alpha_loss: float,
         mu: float,
         entropy: float,
+        es_fitness: float,
         n_episode: float,
     ) -> None:
         self.wandb.log(
@@ -206,6 +215,7 @@ class SAC:
                 "[TRAIN] alpha": self.alpha,
                 "[TRAIN] mu": mu,
                 "[TRAIN] entropy": entropy,
+                "[TRAIN] ES fitness": es_fitness,
                 "[TRAIN] Replay buffer": self.replay_buffer.size(),
                 "training episode": n_episode,
                 "training steps": self.training_time_steps,
@@ -216,7 +226,7 @@ class SAC:
         # N: current number of transitions in the replay buffer.
         buffer_size = self.replay_buffer.size()
 
-        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = 0.0
+        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = es_fitness = 0.0
 
         for k in range(num_updates):
             # c_k = N * eta^(k * 1000 / K), floored at c_min. The k=0 update sees the whole
@@ -227,9 +237,9 @@ class SAC:
             else:
                 c_k = buffer_size
 
-            policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy = self.train(most_recent=c_k)
+            policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy, es_fitness = self.train(most_recent=c_k)
 
-        return policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy
+        return policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy, es_fitness
 
     def train(self, most_recent: int = None):
         self.training_time_steps += 1
@@ -304,7 +314,61 @@ class SAC:
             source_model=self.q_network, target_model=self.target_q_network, tau=self.soft_update_tau
         )
 
-        return policy_loss.item(), qf1_loss.item(), qf2_loss.item(), alpha_loss.item(), mu.mean().item(), entropy.item()
+        # ES update: zero-order gradient via antithetic critic-surrogate fitness.
+        # Runs after the gradient step so Q-network weights are current.
+        es_fitness = 0.0
+        if self.use_es:
+            es_fitness = self._es_update(observations)
+
+        return policy_loss.item(), qf1_loss.item(), qf2_loss.item(), alpha_loss.item(), mu.mean().item(), entropy.item(), es_fitness
+
+    def _es_update(self, observations: torch.Tensor) -> float:
+        """
+        Antithetic ES update using min(Q1, Q2) as surrogate fitness.
+        K/2 noise vectors are mirrored (+ε, -ε) to reduce variance.
+        No environment steps are needed — the critic acts as the fitness function.
+        """
+        param_list = list(self.policy.parameters())
+        saved = [p.data.clone() for p in param_list]
+        half_k = max(1, self.es_num_perturbations // 2)
+
+        noises = [[torch.randn_like(p) for p in param_list] for _ in range(half_k)]
+
+        pos_fitnesses, neg_fitnesses = [], []
+
+        for eps in noises:
+            # Positive perturbation: θ + σε
+            for p, e, s in zip(param_list, eps, saved):
+                p.data.copy_(s + self.es_sigma * e)
+            with torch.no_grad():
+                actions, _, _, _ = self.policy.sample(observations)
+                q1, q2 = self.q_network(observations, actions)
+                pos_fitnesses.append(torch.min(q1, q2).mean().item())
+
+            # Negative perturbation: θ - σε
+            for p, e, s in zip(param_list, eps, saved):
+                p.data.copy_(s - self.es_sigma * e)
+            with torch.no_grad():
+                actions, _, _, _ = self.policy.sample(observations)
+                q1, q2 = self.q_network(observations, actions)
+                neg_fitnesses.append(torch.min(q1, q2).mean().item())
+
+        # Restore original parameters before applying the update
+        for p, s in zip(param_list, saved):
+            p.data.copy_(s)
+
+        # Fitness shaping: normalize by std of all evaluations for scale stability
+        all_f = np.array(pos_fitnesses + neg_fitnesses)
+        f_std = all_f.std() + 1e-8
+        diffs = (np.array(pos_fitnesses) - np.array(neg_fitnesses)) / f_std
+
+        # ES gradient estimate (antithetic): Δθ = (es_lr / (K * σ)) * Σ_i diff_i * ε_i
+        scale = self.es_lr / (self.es_num_perturbations * self.es_sigma)
+        for i, eps in enumerate(noises):
+            for p, e in zip(param_list, eps):
+                p.data.add_(scale * float(diffs[i]) * e)
+
+        return float(all_f.mean())
 
     def soft_synchronize_models(self, source_model, target_model, tau):
         source_model_state = source_model.state_dict()
@@ -379,6 +443,10 @@ def main() -> None:
         "use_ere": False,
         "ere_eta": 0.996,
         "ere_min_size": 5_000,
+        "use_es": True,
+        "es_num_perturbations": 20,  # K (antithetic pairs: K/2)
+        "es_sigma": 0.01,            # parameter noise std
+        "es_lr": 1e-3,               # ES step size
     }
 
     use_wandb = True

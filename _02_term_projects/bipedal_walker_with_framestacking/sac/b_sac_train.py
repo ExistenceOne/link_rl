@@ -28,7 +28,7 @@ class SAC:
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if use_wandb:
-            self.wandb = None  # wandb.init(...) intentionally disabled for framestacking variant
+            self.wandb = wandb.init(project="sac_{0}_with_framestacking".format(self.env_name), name=self.current_time, config=config)
         else:
             self.wandb = None
 
@@ -344,7 +344,7 @@ def main() -> None:
         "automatic_entropy_tuning": True
     }
 
-    use_wandb = False
+    use_wandb = True
     sac = SAC(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
     sac.train_loop()
 

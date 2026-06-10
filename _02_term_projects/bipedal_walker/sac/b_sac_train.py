@@ -135,7 +135,7 @@ class SAC:
                     if validation_episode_reward_avg > self.episode_reward_avg_solved:
                         print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                         self.model_save(validation_episode_reward_avg)
-                        is_terminated = True
+                        # is_terminated = True
 
                     if self.use_wandb:
                         self.log_wandb(
@@ -427,7 +427,7 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "max_num_episodes": 200_000,
+        "max_num_episodes": 5_000,
         "batch_size": 256,
         "steps_between_train": 1,
         "replay_buffer_size": 1_000_000,
@@ -437,7 +437,7 @@ def main() -> None:
         "print_episode_interval": 20,
         "validation_time_steps_interval": 25_000,
         "validation_num_episodes": 3,
-        "episode_reward_avg_solved": 300,
+        "episode_reward_avg_solved": 100,
         "learning_starts": 10_000,
         "automatic_entropy_tuning": True,
         "use_ere": False,

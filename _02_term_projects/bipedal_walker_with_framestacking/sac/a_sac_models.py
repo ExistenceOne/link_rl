@@ -150,8 +150,8 @@ class ReplayBuffer:
         self.observations[self.ptr] = torch.as_tensor(observation, dtype=torch.float32, device=DEVICE)
         self.actions[self.ptr] = torch.as_tensor(action, dtype=torch.float32, device=DEVICE)
         self.next_observations[self.ptr] = torch.as_tensor(next_observation, dtype=torch.float32, device=DEVICE)
-        self.rewards[self.ptr, 0] = reward
-        self.dones[self.ptr] = done
+        self.rewards[self.ptr, 0] = float(reward)
+        self.dones[self.ptr] = bool(done)
 
         self.ptr = (self.ptr + 1) % self.capacity
         self.num_transitions = min(self.num_transitions + 1, self.capacity)

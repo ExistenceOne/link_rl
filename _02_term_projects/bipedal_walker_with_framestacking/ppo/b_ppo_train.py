@@ -319,8 +319,8 @@ def main() -> None:
         "batch_size": 256,
         "learning_rate": 1e-4,
         "gamma": 0.99,
-        "gae_lambda": 0.95,                         # GAE lambda
-        "entropy_beta": 0.015,                       # 엔트로피 가중치
+        "gae_lambda": 0.97,                         # GAE lambda
+        "entropy_beta": 0.005,                       # 엔트로피 가중치
         "max_grad_norm": 0.5,                       # Gradient clipping norm
         "print_episode_interval": 10,
         "validation_time_steps_interval": 30_000,

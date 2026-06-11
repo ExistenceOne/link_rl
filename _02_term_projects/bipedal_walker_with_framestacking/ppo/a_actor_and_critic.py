@@ -36,7 +36,7 @@ class Actor(nn.Module):
         mu_v = F.tanh(self.mu(x))
 
         std_v = self.log_std.exp()
-        std_v = torch.clamp(std_v, min=0.15, max=0.8)  # Clamping for numerical stability
+        # std_v = torch.clamp(std_v, min=0.15, max=0.8)  # Clamping for numerical stability
 
         return mu_v, std_v
 

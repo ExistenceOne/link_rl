@@ -61,7 +61,7 @@ class PPO:
     def train_loop(self) -> None:
         total_train_start_time = time.time()
 
-        validation_episode_reward_avg = -200
+        validation_episode_reward_avg = -100
         actor_loss = critic_loss = mu_v = avg_std_v = avg_action = 0.0
         approx_kl = clip_frac = entropy = action_clip_frac = 0.0
 
@@ -320,7 +320,7 @@ def main() -> None:
         "learning_rate": 1e-4,
         "gamma": 0.99,
         "gae_lambda": 0.95,                         # GAE lambda
-        "entropy_beta": 0.02,                       # 엔트로피 가중치
+        "entropy_beta": 0.015,                       # 엔트로피 가중치
         "max_grad_norm": 0.5,                       # Gradient clipping norm
         "print_episode_interval": 10,
         "validation_time_steps_interval": 30_000,

@@ -84,7 +84,7 @@ class SAC:
     def train_loop(self) -> None:
         self.total_train_start_time = time.time()
 
-        validation_episode_reward_avg = -300
+        validation_episode_reward_avg = -100
         policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = 0.0
 
         is_terminated = False

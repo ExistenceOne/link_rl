@@ -336,7 +336,7 @@ def main() -> None:
         "max_num_episodes": 10_000,
         "learning_starts": 10_000,
         "batch_size": 256,
-        "steps_between_train": 1,
+        "steps_between_train": 2,
         "replay_buffer_size": 1_000_000,
         "policy_lr": 1e-4,
         "q_lr": 1e-4,

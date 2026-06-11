@@ -427,7 +427,7 @@ class PPO:
 
         if use_wandb:
             current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
-            self.wandb = wandb.init(project="PPO_{0}_with_framestacking".format(config["env_name"]), name=current_time, config=config)
+            self.wandb = wandb.init(project="APPO_{0}_with_framestacking".format(config["env_name"]), name=current_time, config=config)
         else:
             self.wandb = None
 

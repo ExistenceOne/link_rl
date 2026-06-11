@@ -12,7 +12,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from gymnasium.wrappers import NormalizeReward
 
-from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, ReplayBuffer, Transition, DEVICE
+from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, ReplayBuffer, DEVICE
 
 import wandb
 
@@ -108,9 +108,7 @@ class SAC:
 
                 episode_reward += reward
 
-                transition = Transition(observation, action, next_observation, reward, terminated)
-
-                self.replay_buffer.append(transition)
+                self.replay_buffer.append(observation, action, next_observation, reward, terminated)
 
                 observation = next_observation
                 done = terminated or truncated

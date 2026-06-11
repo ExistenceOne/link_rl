@@ -1,4 +1,3 @@
-import collections
 import os
 
 import numpy as np
@@ -123,11 +122,6 @@ class SoftQNetwork(nn.Module):
         return x1, x2
 
 
-Transition = collections.namedtuple(
-    typename="Transition", field_names=["observation", "action", "next_observation", "reward", "done"]
-)
-
-
 class ReplayBuffer:
     def __init__(self, capacity: int, observation_shape: tuple, n_actions: int):
         self.capacity = capacity
@@ -144,9 +138,7 @@ class ReplayBuffer:
     def size(self) -> int:
         return self.num_transitions
 
-    def append(self, transition: Transition) -> None:
-        observation, action, next_observation, reward, done = transition
-
+    def append(self, observation, action, next_observation, reward, done) -> None:
         self.observations[self.ptr] = torch.as_tensor(observation, dtype=torch.float32, device=DEVICE)
         self.actions[self.ptr] = torch.as_tensor(action, dtype=torch.float32, device=DEVICE)
         self.next_observations[self.ptr] = torch.as_tensor(next_observation, dtype=torch.float32, device=DEVICE)

@@ -41,7 +41,7 @@ class SAC:
         self.print_episode_interval = config["print_episode_interval"]
         self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
-        self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
+        self.episode_reward_avg_save = config["episode_reward_avg_save"]
         self.steps_between_train = config["steps_between_train"]
         self.soft_update_tau = config["soft_update_tau"]
         self.replay_buffer_size = config["replay_buffer_size"]
@@ -121,7 +121,7 @@ class SAC:
                 if self.time_steps % self.validation_time_steps_interval == 0:
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
-                    if validation_episode_reward_avg > self.episode_reward_avg_solved:
+                    if validation_episode_reward_avg > self.episode_reward_avg_save:
                         print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                         self.model_save(validation_episode_reward_avg)
                         # is_terminated = True
@@ -345,7 +345,7 @@ def main() -> None:
         "soft_update_tau": 0.995,
         "validation_time_steps_interval": 30_000,
         "validation_num_episodes": 3,
-        "episode_reward_avg_solved": 100,
+        "episode_reward_avg_save": 0,
         "automatic_entropy_tuning": True,
         "print_episode_interval": 10
     }

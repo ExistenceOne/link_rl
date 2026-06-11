@@ -40,7 +40,7 @@ class PPO:
         self.print_episode_interval = config["print_episode_interval"]
         self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
-        self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
+        self.episode_reward_avg_save = config["episode_reward_avg_save"]
 
         n_features = int(np.prod(env.observation_space.shape))  # (4,24) -> 96
         n_actions = env.action_space.shape[0]
@@ -106,7 +106,7 @@ class PPO:
                         )
                     )
 
-                    if validation_episode_reward_avg > self.episode_reward_avg_solved:
+                    if validation_episode_reward_avg > self.episode_reward_avg_save:
                         print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                         self.model_save(validation_episode_reward_avg)
                         # is_terminated = True
@@ -299,18 +299,18 @@ def main() -> None:
     test_env = gym.wrappers.FrameStackObservation(test_env, stack_size=4)
 
     config = {
-        "env_name": ENV_NAME,                       # 환경의 이름
-        "max_num_episodes": 50_000,                # 훈련을 위한 최대 에피소드 횟수
-        "ppo_epochs": 10,                           # PPO 내부 업데이트 횟수
+        "env_name": ENV_NAME,
+        "max_num_episodes": 50_000,
+        "ppo_epochs": 10,
         "ppo_clip_coefficient": 0.2,                # PPO Ratio Clip Coefficient
-        "batch_size": 256,                          # 훈련시 배치에서 한번에 가져오는 배치 사이즈
-        "learning_rate": 1e-4,                    # 학습율
-        "gamma": 0.99,                              # 감가율
+        "batch_size": 256,
+        "learning_rate": 1e-4,
+        "gamma": 0.99,
         "entropy_beta": 0.03,                       # 엔트로피 가중치
-        "print_episode_interval": 10,               # Episode 통계 출력에 관한 에피소드 간격
-        "validation_time_steps_interval": 30_000,   # 검증 사이 마다 각 훈련 time steps 간격
-        "validation_num_episodes": 3,               # 검증에 수행하는 에피소드 횟수
-        "episode_reward_avg_solved": 100,          # 훈련 종료를 위한 테스트 에피소드 리워드의 Average
+        "print_episode_interval": 10,
+        "validation_time_steps_interval": 30_000,
+        "validation_num_episodes": 3,
+        "episode_reward_avg_save": 0,
     }
 
     use_wandb = True

@@ -465,14 +465,14 @@ def main() -> None:
     config = {
         "env_name": ENV_NAME,                               # 환경의 이름
         "num_workers": 4,                                   # 동시 수행 Worker Process 수
-        "max_num_episodes": 10_000,                        # 훈련을 위한 최대 에피소드 횟수
-        "ppo_epochs": 10,                                   # PPO 내부 업데이트 횟수
-        "ppo_clip_coefficient": 0.2,                        # PPO Ratio Clip Coefficient
+        "max_num_episodes": 50_000,                        # 훈련을 위한 최대 에피소드 횟수
+        "ppo_epochs": 5,                                   # PPO 내부 업데이트 횟수
+        "ppo_clip_coefficient": 0.1,                        # PPO Ratio Clip Coefficient
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
-        "learning_rate": 1e-4,                            # 학습율
+        "learning_rate": 5e-5,                            # 학습율
         "gamma": 0.99,                                      # 감가율
-        "entropy_beta": 0.01,                               # 엔트로피 가중치
-        "print_episode_interval": 10,                       # Episode 통계 출력에 관한 에피소드 간격
+        "entropy_beta": 0.03,                               # 엔트로피 가중치
+        "print_episode_interval": 50,                       # Episode 통계 출력에 관한 에피소드 간격
         "validation_episodes_interval": 100,                # 검증 사이 마다 각 훈련 time steps 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         "episode_reward_avg_save": 0,                      # 모델 저장을 위한 테스트 에피소드 리워드의 Average

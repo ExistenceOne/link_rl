@@ -320,7 +320,7 @@ def main() -> None:
         "learning_rate": 1e-4,
         "gamma": 0.99,
         "gae_lambda": 0.95,                         # GAE lambda
-        "entropy_beta": 0.03,                       # 엔트로피 가중치
+        "entropy_beta": 0.025,                       # 엔트로피 가중치
         "max_grad_norm": 0.5,                       # Gradient clipping norm
         "print_episode_interval": 10,
         "validation_time_steps_interval": 30_000,

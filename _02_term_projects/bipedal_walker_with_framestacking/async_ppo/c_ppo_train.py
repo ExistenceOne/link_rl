@@ -472,7 +472,7 @@ def main() -> None:
         "learning_rate": 5e-5,                            # 학습율
         "gamma": 0.99,                                      # 감가율
         "entropy_beta": 0.03,                               # 엔트로피 가중치
-        "print_episode_interval": 50,                       # Episode 통계 출력에 관한 에피소드 간격
+        "print_episode_interval": 100,                       # Episode 통계 출력에 관한 에피소드 간격
         "validation_episodes_interval": 100,                # 검증 사이 마다 각 훈련 time steps 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수
         "episode_reward_avg_save": 0,                      # 모델 저장을 위한 테스트 에피소드 리워드의 Average

@@ -129,44 +129,40 @@ Transition = collections.namedtuple(
 
 
 class ReplayBuffer:
-    def __init__(self, capacity: int):
-        self.buffer = collections.deque(maxlen=capacity)
+    def __init__(self, capacity: int, observation_shape: tuple, n_actions: int):
+        self.capacity = capacity
+        self.ptr = 0
+        self.num_transitions = 0
+
+        # Pre-allocate the entire buffer as tensors on DEVICE (assumes DEVICE is cuda)
+        self.observations = torch.zeros((capacity, *observation_shape), dtype=torch.float32, device=DEVICE)
+        self.actions = torch.zeros((capacity, n_actions), dtype=torch.float32, device=DEVICE)
+        self.next_observations = torch.zeros((capacity, *observation_shape), dtype=torch.float32, device=DEVICE)
+        self.rewards = torch.zeros((capacity, 1), dtype=torch.float32, device=DEVICE)
+        self.dones = torch.zeros((capacity,), dtype=torch.bool, device=DEVICE)
 
     def size(self) -> int:
-        return len(self.buffer)
+        return self.num_transitions
 
     def append(self, transition: Transition) -> None:
-        self.buffer.append(transition)
+        observation, action, next_observation, reward, done = transition
 
-    def pop(self) -> Transition:
-        return self.buffer.pop()
+        self.observations[self.ptr] = torch.as_tensor(observation, dtype=torch.float32, device=DEVICE)
+        self.actions[self.ptr] = torch.as_tensor(action, dtype=torch.float32, device=DEVICE)
+        self.next_observations[self.ptr] = torch.as_tensor(next_observation, dtype=torch.float32, device=DEVICE)
+        self.rewards[self.ptr, 0] = reward
+        self.dones[self.ptr] = done
 
-    def clear(self) -> None:
-        self.buffer.clear()
+        self.ptr = (self.ptr + 1) % self.capacity
+        self.num_transitions = min(self.num_transitions + 1, self.capacity)
 
     def sample(self, batch_size: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        # Get random index
-        indices = np.random.choice(len(self.buffer), size=batch_size, replace=False)
-        # Sample
-        observations, actions, next_observations, rewards, dones = zip(*[self.buffer[idx] for idx in indices])
+        indices = torch.randint(0, self.num_transitions, (batch_size,), device=DEVICE)
 
-        # Convert to ndarray for speed up cuda
-        observations = np.array(observations)
-        next_observations = np.array(next_observations)
-        # observations.shape, next_observations.shape: (32, 4), (32, 4)
-
-        actions = np.array(actions)
-        actions = np.expand_dims(actions, axis=-1) if actions.ndim == 1 else actions
-        rewards = np.array(rewards)
-        rewards = np.expand_dims(rewards, axis=-1) if rewards.ndim == 1 else rewards
-        dones = np.array(dones, dtype=bool)
-        # actions.shape, rewards.shape, dones.shape: (32, 1) (32, 1) (32,)
-
-        # Convert to tensor
-        observations = torch.tensor(observations, dtype=torch.float32, device=DEVICE)
-        actions = torch.tensor(actions, dtype=torch.float32, device=DEVICE)
-        next_observations = torch.tensor(next_observations, dtype=torch.float32, device=DEVICE)
-        rewards = torch.tensor(rewards, dtype=torch.float32, device=DEVICE)
-        dones = torch.tensor(dones, dtype=torch.bool, device=DEVICE)
-
-        return observations, actions, next_observations, rewards, dones
+        return (
+            self.observations[indices],
+            self.actions[indices],
+            self.next_observations[indices],
+            self.rewards[indices],
+            self.dones[indices],
+        )

@@ -22,8 +22,8 @@ class Actor(nn.Module):
         self.fc2 = nn.Linear(512, 512)
         self.mu = nn.Linear(512, n_actions)
 
-        # ln(x) = -0.693 --> x = e^-0.693 = 0.5
-        log_std_param = nn.Parameter(torch.full((n_actions,), -0.693))
+        # ln(x) = -0.224 --> x = e^-0.224 = 0.799
+        log_std_param = nn.Parameter(torch.full((n_actions,), -0.224))
         self.register_parameter("log_std", log_std_param)
         self.to(DEVICE)
 

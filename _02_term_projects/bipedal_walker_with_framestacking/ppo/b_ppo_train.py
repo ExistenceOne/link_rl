@@ -36,7 +36,9 @@ class PPO:
         self.batch_size = config["batch_size"]
         self.learning_rate = config["learning_rate"]
         self.gamma = config["gamma"]
+        self.gae_lambda = config["gae_lambda"]
         self.entropy_beta = config["entropy_beta"]
+        self.max_grad_norm = config["max_grad_norm"]
         self.print_episode_interval = config["print_episode_interval"]
         self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
@@ -190,14 +192,23 @@ class PPO:
 
         observations, actions, next_observations, rewards, dones = self.buffer.get()
 
-        # TD(0) target values and advantage computation
-        values = self.critic(observations).squeeze(dim=-1)
-        next_values = self.critic(next_observations).squeeze(dim=-1)
-        next_values[dones] = 0.0
-        target_values = rewards.squeeze(dim=-1) + self.gamma * next_values
+        # GAE computation with no gradient
+        with torch.no_grad():
+            values = self.critic(observations).squeeze(dim=-1)
+            next_values = self.critic(next_observations).squeeze(dim=-1)
+            next_values[dones] = 0.0
 
-        advantages = target_values - values
-        advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
+            deltas = rewards.squeeze(dim=-1) + self.gamma * next_values - values
+            not_done = (~dones).float()
+
+            advantages = torch.zeros_like(deltas)
+            gae = 0.0
+            for t in reversed(range(len(deltas))):
+                gae = deltas[t] + self.gamma * self.gae_lambda * not_done[t] * gae
+                advantages[t] = gae
+
+            returns = advantages + values
+            advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-7)
 
         # Compute old log probs before any parameter updates
         old_mu, old_std = self.actor.forward(observations)
@@ -208,10 +219,11 @@ class PPO:
         for _ in range(self.ppo_epochs):
             # CRITIC UPDATE
             values = self.critic(observations).squeeze(dim=-1)
-            critic_loss = F.mse_loss(target_values.detach(), values)
+            critic_loss = F.mse_loss(returns.detach(), values)
 
             self.critic_optimizer.zero_grad()
             critic_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
             self.critic_optimizer.step()
 
             # ACTOR UPDATE with clipped PPO objective
@@ -229,10 +241,11 @@ class PPO:
 
             entropy = dist.entropy().sum(dim=-1).mean()
 
-            actor_loss = -1.0 * ratio_advantages - 1.0 * entropy * self.entropy_beta
+            actor_loss = -1.0 * ratio_advantages - self.entropy_beta * entropy
 
             self.actor_optimizer.zero_grad()
             actor_loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
             self.actor_optimizer.step()
 
         mu, std = self.actor.forward(observations)
@@ -306,7 +319,9 @@ def main() -> None:
         "batch_size": 256,
         "learning_rate": 1e-4,
         "gamma": 0.99,
+        "gae_lambda": 0.95,                         # GAE lambda
         "entropy_beta": 0.03,                       # 엔트로피 가중치
+        "max_grad_norm": 0.5,                       # Gradient clipping norm
         "print_episode_interval": 10,
         "validation_time_steps_interval": 30_000,
         "validation_num_episodes": 3,

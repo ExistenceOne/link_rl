@@ -198,7 +198,9 @@ def worker_loop(
             self.batch_size = config["batch_size"]
             self.learning_rate = config["learning_rate"]
             self.gamma = config["gamma"]
+            self.gae_lambda = config["gae_lambda"]
             self.entropy_beta = config["entropy_beta"]
+            self.max_grad_norm = config["max_grad_norm"]
             self.print_episode_interval = config["print_episode_interval"]
 
             self.buffer = Buffer()
@@ -284,13 +286,23 @@ def worker_loop(
             initial_local_actor_params = copy.deepcopy(self.local_actor.state_dict())
 
 
-            values = self.local_critic(observations).squeeze(dim=-1)
-            next_values = self.local_critic(next_observations).squeeze(dim=-1)
-            next_values[dones] = 0.0
-            target_values = rewards.squeeze(dim=-1) + self.gamma * next_values
-            # Normalized advantage calculation
-            advantages = target_values - values
-            advantages = (advantages - torch.mean(advantages)) / (torch.std(advantages) + 1e-7)
+            # GAE computation with no gradient
+            with torch.no_grad():
+                values = self.local_critic(observations).squeeze(dim=-1)
+                next_values = self.local_critic(next_observations).squeeze(dim=-1)
+                next_values[dones] = 0.0
+
+                deltas = rewards.squeeze(dim=-1) + self.gamma * next_values - values
+                not_done = (~dones).float()
+
+                advantages = torch.zeros_like(deltas)
+                gae = 0.0
+                for t in reversed(range(len(deltas))):
+                    gae = deltas[t] + self.gamma * self.gae_lambda * not_done[t] * gae
+                    advantages[t] = gae
+
+                returns = advantages + values
+                advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-7)
 
             old_mu, old_std = self.local_actor.forward(observations)
             old_dist = Normal(old_mu, old_std)
@@ -300,10 +312,11 @@ def worker_loop(
                 values = self.local_critic(observations).squeeze(dim=-1)
 
                 # CRITIC UPDATE
-                critic_loss = F.mse_loss(target_values.detach(), values)
+                critic_loss = F.mse_loss(returns.detach(), values)
 
                 self.local_critic_optimizer.zero_grad()
                 critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.local_critic.parameters(), self.max_grad_norm)
                 self.local_critic_optimizer.step()
 
                 # Actor Loss computing
@@ -321,11 +334,12 @@ def worker_loop(
 
                 entropy_sum = dist.entropy().sum(dim=-1).sum()
 
-                actor_loss = -1.0 * ratio_advantages_sum - 1.0 * entropy_sum * self.entropy_beta
+                actor_loss = -1.0 * ratio_advantages_sum - self.entropy_beta * entropy_sum
 
                 # Actor Update
                 self.local_actor_optimizer.zero_grad()
                 actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(self.local_actor.parameters(), self.max_grad_norm)
                 self.local_actor_optimizer.step()
 
             # Calculate the difference between updated and initial local parameters
@@ -471,7 +485,9 @@ def main() -> None:
         "batch_size": 256,                                  # 훈련시 배치에서 한번에 가져오는 랜덤 배치 사이즈
         "learning_rate": 5e-5,                            # 학습율
         "gamma": 0.99,                                      # 감가율
+        "gae_lambda": 0.95,                                 # GAE lambda
         "entropy_beta": 0.03,                               # 엔트로피 가중치
+        "max_grad_norm": 0.5,                               # Gradient clipping norm
         "print_episode_interval": 100,                       # Episode 통계 출력에 관한 에피소드 간격
         "validation_episodes_interval": 100,                # 검증 사이 마다 각 훈련 time steps 간격
         "validation_num_episodes": 3,                       # 검증에 수행하는 에피소드 횟수

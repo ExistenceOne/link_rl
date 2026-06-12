@@ -372,8 +372,8 @@ def main() -> None:
         "automatic_entropy_tuning": True,
         "grad_steps_ratio": 1.0,         # SAC gradient steps per env step collected each generation
         # ERL / evolution
-        "pop_size": 10,
-        "n_elite": 2,
+        "pop_size": 50,
+        "n_elite": 10,
         "eval_episodes": 1,
         "mut_prob": 0.5,
         "mut_strength": 0.3,

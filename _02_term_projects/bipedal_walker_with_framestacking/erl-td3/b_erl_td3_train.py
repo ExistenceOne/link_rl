@@ -335,8 +335,8 @@ def main() -> None:
         "target_policy_noise": 0.2,
         "target_policy_noise_clip": 0.5,
         # ERL / evolution
-        "pop_size": 10,
-        "n_elite": 2,
+        "pop_size": 50,
+        "n_elite": 10,
         "eval_episodes": 1,
         "mut_prob": 0.5,
         "mut_strength": 0.3,

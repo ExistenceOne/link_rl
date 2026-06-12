@@ -338,8 +338,8 @@ def main() -> None:
         "pop_size": 10,
         "n_elite": 2,
         "eval_episodes": 1,
-        "mut_prob": 0.1,
-        "mut_strength": 0.1,
+        "mut_prob": 0.2,
+        "mut_strength": 0.2,
         "tournament_k": 3,
         "sync_period": 1,
         # logging / validation

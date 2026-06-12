@@ -308,7 +308,7 @@ def main() -> None:
         "pop_size": 10,
         "n_elite": 5,                    # top half
         "eval_episodes": 1,
-        "sigma_init": 1e-3,
+        "sigma_init": 0.05,
         "noise_init": 0.05,
         "noise_end": 0.005,
         "noise_decay": 0.999,

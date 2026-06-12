@@ -320,15 +320,15 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
-        "max_generations": 5_000,
+        "stack_size": 4,                 # 1 disables frame stacking; >1 stacks that many frames
+        "max_generations": 10_000,
         "batch_size": 256,
         "learning_rate": 3e-4,
         "gamma": 0.99,
         "soft_update_tau": 0.995,
         "replay_buffer_size": 1_000_000,
         "learning_starts": 10_000,
-        "exploration_noise": 0.1,
+        "exploration_noise": 0.2,
         "grad_steps_ratio": 1.0,
         # TD3-specific
         "policy_update_delay": 2,
@@ -338,8 +338,8 @@ def main() -> None:
         "pop_size": 10,
         "n_elite": 2,
         "eval_episodes": 1,
-        "mut_prob": 0.1,
-        "mut_strength": 0.1,
+        "mut_prob": 0.5,
+        "mut_strength": 0.3,
         "tournament_k": 3,
         "sync_period": 1,
         # logging / validation
@@ -347,7 +347,7 @@ def main() -> None:
         "validation_generation_interval": 10,
         "validation_num_episodes": 3,
         "episode_reward_avg_solved": 300,
-        "save_generation_interval": 100,
+        "save_generation_interval": 50,
     }
 
     env = make_env(ENV_NAME, config["stack_size"])

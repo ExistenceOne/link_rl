@@ -340,8 +340,8 @@ def main() -> None:
         "n_elite": 5,
         "eval_episodes": 1,
         "sigma_init": 1e-3,
-        "noise_init": 1e-3,
-        "noise_end": 1e-5,
+        "noise_init": 0.05,
+        "noise_end": 0.005,
         "noise_decay": 0.999,
         # logging / validation
         "print_generation_interval": 1,

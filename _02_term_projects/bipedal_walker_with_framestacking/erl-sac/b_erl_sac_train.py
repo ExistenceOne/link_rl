@@ -364,7 +364,7 @@ def main() -> None:
         "batch_size": 256,
         "policy_lr": 3e-4,
         "q_lr": 3e-4,
-        "alpha_lr": 3e-5,
+        "alpha_lr": 3e-4,
         "gamma": 0.99,
         "soft_update_tau": 0.995,
         "replay_buffer_size": 1_000_000,
@@ -375,8 +375,8 @@ def main() -> None:
         "pop_size": 10,
         "n_elite": 2,
         "eval_episodes": 1,
-        "mut_prob": 0.2,
-        "mut_strength": 0.2,
+        "mut_prob": 0.5,
+        "mut_strength": 0.3,
         "tournament_k": 3,
         "sync_period": 1,
         # logging / validation
@@ -384,7 +384,7 @@ def main() -> None:
         "validation_generation_interval": 10,
         "validation_num_episodes": 3,
         "episode_reward_avg_solved": 300,
-        "save_generation_interval": 10,
+        "save_generation_interval": 20,
     }
 
     env = make_env(ENV_NAME, config["stack_size"])

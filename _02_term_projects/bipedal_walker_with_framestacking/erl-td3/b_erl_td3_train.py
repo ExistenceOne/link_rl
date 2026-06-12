@@ -338,10 +338,10 @@ def main() -> None:
         "pop_size": 20,
         "n_elite": 2,
         "eval_episodes": 1,
-        "mut_prob": 0.9,
+        "mut_prob": 0.3,
         "mut_strength": 0.1,
         "tournament_k": 3,
-        "sync_period": 10,
+        "sync_period": 4,
         # logging / validation
         "print_generation_interval": 1,
         "validation_generation_interval": 10,

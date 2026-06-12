@@ -41,7 +41,7 @@ class SAC:
         self.print_episode_interval = config["print_episode_interval"]
         self.validation_time_steps_interval = config["validation_time_steps_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
-        self.episode_reward_avg_save = config["episode_reward_avg_save"]
+        self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
         self.steps_between_train = config["steps_between_train"]
         self.soft_update_tau = config["soft_update_tau"]
         self.replay_buffer_size = config["replay_buffer_size"]
@@ -72,7 +72,7 @@ class SAC:
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.alpha_lr)
             self.alpha = self.log_alpha.exp().item()
         else:
-            self.alpha = 0.2
+            self.alpha = 0.005
 
         self.time_steps = 0
         self.training_time_steps = 0
@@ -119,10 +119,10 @@ class SAC:
                 if self.time_steps % self.validation_time_steps_interval == 0:
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
-                    if validation_episode_reward_avg > self.episode_reward_avg_save:
+                    if validation_episode_reward_avg > self.episode_reward_avg_solved:
                         print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
                         self.model_save(validation_episode_reward_avg)
-                        # is_terminated = True
+                        is_terminated = True
 
 
             if n_episode % self.print_episode_interval == 0:
@@ -331,21 +331,22 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "max_num_episodes": 10_000,
+        "max_num_episodes": 100_000,
         "learning_starts": 10_000,
         "batch_size": 256,
         "steps_between_train": 1,
         "replay_buffer_size": 1_000_000,
-        "policy_lr": 3e-4,
-        "q_lr": 3e-4,
-        "alpha_lr": 3e-4,
+        "policy_lr": 7e-4,
+        "q_lr": 7e-4,
+        "alpha_lr": 7e-4,
         "gamma": 0.99,
-        "soft_update_tau": 0.995,
+        "soft_update_tau": 0.99,
         "validation_time_steps_interval": 30_000,
         "validation_num_episodes": 3,
-        "episode_reward_avg_save": 0,
+        "episode_reward_avg_solved": 300,
         "automatic_entropy_tuning": True,
-        "print_episode_interval": 10
+        "print_episode_interval": 10,
+        "model_save_episode_interval": 100,
     }
 
     use_wandb = True

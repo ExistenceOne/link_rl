@@ -360,13 +360,13 @@ def main() -> None:
     config = {
         "env_name": ENV_NAME,
         "stack_size": 4,                 # 1 disables frame stacking; >1 stacks that many frames
-        "max_generations": 10_000,
+        "max_generations": 100_000,
         "batch_size": 256,
-        "policy_lr": 3e-4,
-        "q_lr": 3e-4,
-        "alpha_lr": 3e-4,
+        "policy_lr": 7e-4,
+        "q_lr": 7e-4,
+        "alpha_lr": 7e-4,
         "gamma": 0.99,
-        "soft_update_tau": 0.995,
+        "soft_update_tau": 0.99,
         "replay_buffer_size": 1_000_000,
         "learning_starts": 10_000,
         "automatic_entropy_tuning": True,
@@ -375,10 +375,10 @@ def main() -> None:
         "pop_size": 20,
         "n_elite": 2,
         "eval_episodes": 1,
-        "mut_prob": 0.8,
-        "mut_strength": 0.05,
+        "mut_prob": 0.3,
+        "mut_strength": 0.1,
         "tournament_k": 3,
-        "sync_period": 20,
+        "sync_period": 4,             # generations between SAC actor injection into the population
         # logging / validation
         "print_generation_interval": 1,
         "validation_generation_interval": 10,

@@ -1,4 +1,5 @@
 import os
+import sys
 
 import gymnasium as gym
 import numpy as np
@@ -37,7 +38,7 @@ def test(env: gym.Env, actor: Actor, num_episodes: int) -> None:
         print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(i, episode_steps, episode_reward))
 
 
-def main_play(num_episodes: int, env_name: str, stack_size: int) -> None:
+def main_play(num_episodes: int, env_name: str, stack_size: int, model_filename: str) -> None:
     env = make_env(env_name, stack_size, render_mode="human")
 
     obs_shape = env.observation_space.shape
@@ -46,7 +47,7 @@ def main_play(num_episodes: int, env_name: str, stack_size: int) -> None:
     n_actions = env.action_space.shape[0]
 
     actor = Actor(n_features=n_features, n_actions=n_actions, obs_ndim=obs_ndim)
-    model_params = torch.load(os.path.join(MODEL_DIR, "erl_ddpg_{0}_latest.pth".format(env_name)), weights_only=True)
+    model_params = torch.load(os.path.join(MODEL_DIR, model_filename), weights_only=True)
     actor.load_state_dict(model_params)
     actor.eval()
 
@@ -60,4 +61,9 @@ if __name__ == "__main__":
     ENV_NAME = "BipedalWalkerHardcore-v3"
     STACK_SIZE = 1  # must match the stack_size used during training
 
-    main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME, stack_size=STACK_SIZE)
+    if len(sys.argv) > 1:
+        MODEL_FILENAME = sys.argv[1]
+    else:
+        MODEL_FILENAME = "erl_ddpg_{0}_latest.pth".format(ENV_NAME)
+
+    main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME, stack_size=STACK_SIZE, model_filename=MODEL_FILENAME)

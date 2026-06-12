@@ -372,13 +372,13 @@ def main() -> None:
         "automatic_entropy_tuning": True,
         "grad_steps_ratio": 1.0,         # SAC gradient steps per env step collected each generation
         # ERL / evolution
-        "pop_size": 50,
-        "n_elite": 10,
+        "pop_size": 20,
+        "n_elite": 2,
         "eval_episodes": 1,
-        "mut_prob": 0.5,
-        "mut_strength": 0.3,
+        "mut_prob": 0.8,
+        "mut_strength": 0.05,
         "tournament_k": 3,
-        "sync_period": 1,
+        "sync_period": 20,
         # logging / validation
         "print_generation_interval": 1,
         "validation_generation_interval": 10,

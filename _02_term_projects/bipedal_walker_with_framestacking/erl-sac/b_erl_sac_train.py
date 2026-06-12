@@ -359,8 +359,8 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
-        "max_generations": 5_000,
+        "stack_size": 4,                 # 1 disables frame stacking; >1 stacks that many frames
+        "max_generations": 10_000,
         "batch_size": 256,
         "policy_lr": 3e-4,
         "q_lr": 3e-4,
@@ -375,8 +375,8 @@ def main() -> None:
         "pop_size": 10,
         "n_elite": 2,
         "eval_episodes": 1,
-        "mut_prob": 0.1,
-        "mut_strength": 0.1,
+        "mut_prob": 0.2,
+        "mut_strength": 0.2,
         "tournament_k": 3,
         "sync_period": 1,
         # logging / validation

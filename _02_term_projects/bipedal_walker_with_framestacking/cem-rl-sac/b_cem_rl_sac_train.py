@@ -323,7 +323,7 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
+        "stack_size": 4,                 # 1 disables frame stacking; >1 stacks that many frames
         "max_generations": 5_000,
         "batch_size": 256,
         "policy_lr": 3e-4,

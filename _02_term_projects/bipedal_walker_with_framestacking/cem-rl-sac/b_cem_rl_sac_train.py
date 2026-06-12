@@ -98,7 +98,7 @@ class CEM_RL_SAC:
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.alpha_lr)
             self.alpha = self.log_alpha.exp().item()
         else:
-            self.alpha = 0.2
+            self.alpha = 0.005
         self.max_alpha = 5.0
 
         # CEM distribution over the flattened policy parameters
@@ -333,7 +333,7 @@ def main() -> None:
         "soft_update_tau": 0.995,
         "replay_buffer_size": 1_000_000,
         "learning_starts": 10_000,
-        "automatic_entropy_tuning": True,
+        "automatic_entropy_tuning": False,
         "n_grad_steps": 200,
         # CEM
         "pop_size": 10,

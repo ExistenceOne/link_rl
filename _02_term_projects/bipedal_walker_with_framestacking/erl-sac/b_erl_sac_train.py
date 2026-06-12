@@ -96,7 +96,7 @@ class ERL_SAC:
             self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.alpha_lr)
             self.alpha = self.log_alpha.exp().item()
         else:
-            self.alpha = 0.2
+            self.alpha = 0.005
         self.max_alpha = 5.0
 
         # Population of additional actors evolved by the GA
@@ -369,7 +369,7 @@ def main() -> None:
         "soft_update_tau": 0.995,
         "replay_buffer_size": 1_000_000,
         "learning_starts": 10_000,
-        "automatic_entropy_tuning": True,
+        "automatic_entropy_tuning": False,
         "grad_steps_ratio": 1.0,         # SAC gradient steps per env step collected each generation
         # ERL / evolution
         "pop_size": 10,

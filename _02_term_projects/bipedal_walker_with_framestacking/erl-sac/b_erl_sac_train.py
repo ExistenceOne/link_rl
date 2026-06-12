@@ -68,7 +68,8 @@ class ERL_SAC:
         self.print_generation_interval = config["print_generation_interval"]
         self.validation_generation_interval = config["validation_generation_interval"]
         self.validation_num_episodes = config["validation_num_episodes"]
-        self.episode_reward_avg_save = config["episode_reward_avg_save"]
+        self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
+        self.save_generation_interval = config["save_generation_interval"]
 
         obs_shape = env.observation_space.shape
         self.n_features = int(np.prod(obs_shape))
@@ -237,7 +238,8 @@ class ERL_SAC:
     # ----------------------------------------------------------------- main loop
     def train_loop(self) -> None:
         self.total_train_start_time = time.time()
-        validation_episode_reward_avg = -1000.0
+        validation_episode_reward_avg = -200.0
+        is_terminated = False
         policy_loss = q1_loss = q2_loss = alpha_loss = entropy = 0.0
 
         for generation in range(1, self.max_generations + 1):
@@ -273,8 +275,12 @@ class ERL_SAC:
             # validation + checkpoint
             if generation % self.validation_generation_interval == 0:
                 validation_episode_reward_avg = self.validate()
-                if validation_episode_reward_avg > self.episode_reward_avg_save:
+                if validation_episode_reward_avg > self.episode_reward_avg_solved:
                     self.model_save(validation_episode_reward_avg)
+                    is_terminated = True
+
+            if generation % self.save_generation_interval == 0:
+                self.model_save_periodic(generation)
 
             if generation % self.print_generation_interval == 0:
                 print(
@@ -290,6 +296,11 @@ class ERL_SAC:
                     generation, validation_episode_reward_avg, best_fitness, mean_fitness,
                     rl_return, policy_loss, q1_loss, q2_loss, alpha_loss, entropy,
                 )
+
+            if is_terminated:
+                print("Solved! Validation Episode Reward Avg: {0:.2f} > {1:.2f}".format(
+                    validation_episode_reward_avg, self.episode_reward_avg_solved))
+                break
 
         total_training_time = time.strftime("%H:%M:%S", time.gmtime(time.time() - self.total_train_start_time))
         print("Total Training End : {}".format(total_training_time))
@@ -319,6 +330,10 @@ class ERL_SAC:
         torch.save(self.policy.state_dict(), os.path.join(MODEL_DIR, filename))
         copyfile(src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "erl_sac_{0}_latest.pth".format(self.env_name)))
 
+    def model_save_periodic(self, generation: int) -> None:
+        filename = "erl_sac_{0}_gen{1:06d}_{2}.pth".format(self.env_name, generation, self.current_time)
+        torch.save(self.policy.state_dict(), os.path.join(MODEL_DIR, filename))
+
     def validate(self) -> float:
         episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
         for i in range(self.validation_num_episodes):
@@ -344,7 +359,7 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "stack_size": 4,                 # 1 disables frame stacking; >1 stacks that many frames
+        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
         "max_generations": 5_000,
         "batch_size": 256,
         "policy_lr": 3e-4,
@@ -368,7 +383,8 @@ def main() -> None:
         "print_generation_interval": 1,
         "validation_generation_interval": 10,
         "validation_num_episodes": 3,
-        "episode_reward_avg_save": 0,
+        "episode_reward_avg_solved": 300,
+        "save_generation_interval": 10,
     }
 
     env = make_env(ENV_NAME, config["stack_size"])

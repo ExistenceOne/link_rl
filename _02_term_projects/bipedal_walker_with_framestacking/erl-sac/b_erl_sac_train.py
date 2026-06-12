@@ -364,7 +364,7 @@ def main() -> None:
         "batch_size": 256,
         "policy_lr": 3e-4,
         "q_lr": 3e-4,
-        "alpha_lr": 3e-5,
+        "alpha_lr": 3e-4,
         "gamma": 0.99,
         "soft_update_tau": 0.995,
         "replay_buffer_size": 1_000_000,

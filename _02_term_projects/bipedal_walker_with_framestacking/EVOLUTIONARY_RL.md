@@ -34,8 +34,9 @@ replay buffer) and a `b_*_train.py` (agent + training loop). Run a trainer from 
     so the same code handles both shapes (`obs_ndim = len(obs_shape)`).
 - **Replay buffer**: a single GPU-resident tensor `ReplayBuffer` (pre-allocated; arbitrary
   `observation_shape`) shared by the whole population and the RL learner.
-- **Actor networks**: 256-hidden MLPs; deterministic `Actor` outputs `tanh ∈ [-1,1]` matching the
-  action space directly (no `*2` scaling). DDPG/TD3 exploration is Gaussian (`exploration_noise`, default 0.1).
+- **Actor networks**: two-layer `(400, 300)` MLPs; deterministic `Actor` outputs `tanh ∈ [-1,1]`
+  matching the action space directly (no `*2` scaling). DDPG/TD3 exploration is Gaussian
+  (`exploration_noise`, default 0.1).
 - **Fitness**: episodic return averaged over `eval_episodes` real rollouts.
 
 ---

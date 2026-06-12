@@ -31,17 +31,16 @@ def _flatten_obs(state, obs_ndim: int):
 
 
 class GaussianPolicy(nn.Module):
-    def __init__(self, n_features, n_actions, hidden_dim=256, action_space=None, obs_ndim: int = 2):
+    def __init__(self, n_features, n_actions, hidden_dim=(400, 300), action_space=None, obs_ndim: int = 2):
         super(GaussianPolicy, self).__init__()
 
         self.obs_ndim = obs_ndim
 
-        self.linear1 = nn.Linear(n_features, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear3 = nn.Linear(hidden_dim, hidden_dim)
+        self.linear1 = nn.Linear(n_features, hidden_dim[0])
+        self.linear2 = nn.Linear(hidden_dim[0], hidden_dim[1])
 
-        self.mean_linear = nn.Linear(hidden_dim, n_actions)
-        self.log_std_linear = nn.Linear(hidden_dim, n_actions)
+        self.mean_linear = nn.Linear(hidden_dim[1], n_actions)
+        self.log_std_linear = nn.Linear(hidden_dim[1], n_actions)
 
         # action rescaling
         if action_space is None:
@@ -56,7 +55,6 @@ class GaussianPolicy(nn.Module):
         state = _flatten_obs(state, self.obs_ndim)
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
-        x = F.relu(self.linear3(x))
         mean = self.mean_linear(x)
         log_std = self.log_std_linear(x)
         log_std = torch.clamp(log_std, min=LOG_SIG_MIN, max=LOG_SIG_MAX)
@@ -99,17 +97,17 @@ class GaussianPolicy(nn.Module):
 
 
 class SoftQNetwork(nn.Module):
-    def __init__(self, n_features, n_actions, hidden_dim=512, obs_ndim: int = 2):
+    def __init__(self, n_features, n_actions, hidden_dim=(400, 300), obs_ndim: int = 2):
         super().__init__()
         self.obs_ndim = obs_ndim
 
-        self.fc1_1 = nn.Linear(n_features + n_actions, hidden_dim)
-        self.fc1_2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc1_3 = nn.Linear(hidden_dim, 1)
+        self.fc1_1 = nn.Linear(n_features + n_actions, hidden_dim[0])
+        self.fc1_2 = nn.Linear(hidden_dim[0], hidden_dim[1])
+        self.fc1_3 = nn.Linear(hidden_dim[1], 1)
 
-        self.fc2_1 = nn.Linear(n_features + n_actions, hidden_dim)
-        self.fc2_2 = nn.Linear(hidden_dim, hidden_dim)
-        self.fc2_3 = nn.Linear(hidden_dim, 1)
+        self.fc2_1 = nn.Linear(n_features + n_actions, hidden_dim[0])
+        self.fc2_2 = nn.Linear(hidden_dim[0], hidden_dim[1])
+        self.fc2_3 = nn.Linear(hidden_dim[1], 1)
 
         self.to(DEVICE)
 

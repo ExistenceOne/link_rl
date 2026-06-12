@@ -25,16 +25,16 @@ def _flatten_obs(state, obs_ndim: int):
 
 
 class Actor(nn.Module):
-    def __init__(self, n_features: int, n_actions: int, hidden_dim: int = 256,
+    def __init__(self, n_features: int, n_actions: int, hidden_dim=(400, 300),
                  obs_ndim: int = 2, exploration_noise: float = 0.1):
         super().__init__()
         self.n_actions = n_actions
         self.obs_ndim = obs_ndim
         self.exploration_noise = exploration_noise
 
-        self.fc1 = nn.Linear(n_features, hidden_dim)
-        self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.out = nn.Linear(hidden_dim, n_actions)
+        self.fc1 = nn.Linear(n_features, hidden_dim[0])
+        self.fc2 = nn.Linear(hidden_dim[0], hidden_dim[1])
+        self.out = nn.Linear(hidden_dim[1], n_actions)
         self.to(DEVICE)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -58,17 +58,17 @@ class Actor(nn.Module):
 class TwinQCritic(nn.Module):
     """TD3 twin critic: two independent Q-networks to reduce overestimation bias."""
 
-    def __init__(self, n_features: int, n_actions: int, hidden_dim: int = 256, obs_ndim: int = 2):
+    def __init__(self, n_features: int, n_actions: int, hidden_dim=(400, 300), obs_ndim: int = 2):
         super().__init__()
         self.obs_ndim = obs_ndim
 
-        self.q1_fc1 = nn.Linear(n_features, hidden_dim)
-        self.q1_fc2 = nn.Linear(hidden_dim + n_actions, hidden_dim)
-        self.q1_fc3 = nn.Linear(hidden_dim, 1)
+        self.q1_fc1 = nn.Linear(n_features, hidden_dim[0])
+        self.q1_fc2 = nn.Linear(hidden_dim[0] + n_actions, hidden_dim[1])
+        self.q1_fc3 = nn.Linear(hidden_dim[1], 1)
 
-        self.q2_fc1 = nn.Linear(n_features, hidden_dim)
-        self.q2_fc2 = nn.Linear(hidden_dim + n_actions, hidden_dim)
-        self.q2_fc3 = nn.Linear(hidden_dim, 1)
+        self.q2_fc1 = nn.Linear(n_features, hidden_dim[0])
+        self.q2_fc2 = nn.Linear(hidden_dim[0] + n_actions, hidden_dim[1])
+        self.q2_fc3 = nn.Linear(hidden_dim[1], 1)
 
         self.to(DEVICE)
 

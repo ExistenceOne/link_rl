@@ -297,7 +297,7 @@ def main() -> None:
     config = {
         "env_name": ENV_NAME,
         "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
-        "max_generations": 5_000,
+        "max_generations": 10_000,
         "batch_size": 256,
         "learning_rate": 3e-4,
         "gamma": 0.99,

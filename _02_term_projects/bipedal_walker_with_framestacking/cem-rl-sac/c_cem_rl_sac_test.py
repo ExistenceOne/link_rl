@@ -57,9 +57,9 @@ def main_play(num_episodes: int, env_name: str, stack_size: int, model_filename:
 
 
 if __name__ == "__main__":
-    NUM_EPISODES = 3
+    NUM_EPISODES = 4
     ENV_NAME = "BipedalWalkerHardcore-v3"
-    STACK_SIZE = 4  # must match the stack_size used during training
+    STACK_SIZE = 1  # must match the stack_size used during training
 
     if len(sys.argv) > 1:
         MODEL_FILENAME = sys.argv[1]

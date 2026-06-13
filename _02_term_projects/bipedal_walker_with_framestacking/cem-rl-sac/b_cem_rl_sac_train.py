@@ -371,7 +371,7 @@ def main() -> None:
         "n_grad_steps": 200,
         # CEM
         "pop_size": 10,
-        "n_elite": 5,
+        "n_elite": 8,
         "eval_episodes": 1,
         "sigma_init": 1e-3,
         "noise_init": 1e-3,
@@ -379,14 +379,14 @@ def main() -> None:
         "noise_decay": 0.999,
         # logging / validation
         "print_generation_interval": 1,
-        "validation_generation_interval": 10,
+        "validation_generation_interval": 4,
         "validation_num_episodes": 3,
         "episode_reward_avg_solved": 300,
-        "save_generation_interval": 10,
+        "save_generation_interval": 4,
         # Warm start: path (relative to MODEL_DIR) to a "*_latest_checkpoint.pth" produced by sac/sac-rnd's
         # b_sac_train.py. Loads actor + critic and re-centers the CEM mean on the loaded actor, so the
         # population starts from a policy that can already walk instead of random weights.
-        "resume_checkpoint_path": None,  # e.g. "../sac/models/sac_BipedalWalkerHardcore-v3_latest_checkpoint.pth"
+        "resume_checkpoint_path": "sac_BipedalWalkerHardcore-v3_latest_checkpoint.pth",
         "resume_load_optimizers": False,
         "resume_load_alpha": False,
     }

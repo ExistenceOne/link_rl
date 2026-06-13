@@ -1,0 +1,518 @@
+# https://gymnasium.farama.org/environments/classic_control/cart_pole/
+import os
+import time
+from datetime import datetime
+from shutil import copyfile
+
+import gymnasium as gym
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
+from gymnasium.wrappers import NormalizeReward
+
+from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, ReplayBuffer, RNDModel, RunningMeanStd, DEVICE
+
+import wandb
+
+
+def make_env(env_name: str, stack_size: int, render_mode: str = None) -> gym.Env:
+    env = gym.make(env_name, render_mode=render_mode)
+    if stack_size and stack_size > 1:
+        env = gym.wrappers.FrameStackObservation(env, stack_size=stack_size)
+    return env
+
+
+class SAC:
+    def __init__(self, env: gym.Env, test_env: gym.Env, config: dict, use_wandb: bool):
+        self.env = env
+        self.test_env = test_env
+        self.use_wandb = use_wandb
+
+        self.env_name = config["env_name"]
+
+        self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
+
+        if use_wandb:
+            self.wandb = wandb.init(project="sac_rnd_{0}_with_framestacking".format(self.env_name), name=self.current_time, config=config)
+        else:
+            self.wandb = None
+
+        self.max_num_episodes = config["max_num_episodes"]
+        self.batch_size = config["batch_size"]
+        self.policy_lr = config["policy_lr"]
+        self.q_lr = config["q_lr"]
+        self.alpha_lr = config["alpha_lr"]
+        self.gamma = config["gamma"]
+        self.print_episode_interval = config["print_episode_interval"]
+        self.validation_time_steps_interval = config["validation_time_steps_interval"]
+        self.validation_num_episodes = config["validation_num_episodes"]
+        self.episode_reward_avg_solved = config["episode_reward_avg_solved"]
+        self.steps_between_train = config["steps_between_train"]
+        self.soft_update_tau = config["soft_update_tau"]
+        self.replay_buffer_size = config["replay_buffer_size"]
+        self.learning_starts = config["learning_starts"]
+        self.automatic_entropy_tuning = config["automatic_entropy_tuning"]
+        self.resume_checkpoint_path = config.get("resume_checkpoint_path")
+        self.resume_load_alpha = config.get("resume_load_alpha", False)
+        self.resume_load_optimizers = config.get("resume_load_optimizers", False)
+
+        # Curiosity-driven exploration (Random Network Distillation)
+        self.use_rnd = config.get("use_rnd", False)
+        self.rnd_lr = config.get("rnd_lr", 1e-4)
+        self.intrinsic_reward_coef = config.get("intrinsic_reward_coef", 0.01)
+
+        obs_shape = env.observation_space.shape
+        n_features = int(np.prod(obs_shape))  # (4,24) -> 96; (24,) -> 24
+        obs_ndim = len(obs_shape)  # 2 when frame-stacked, 1 otherwise
+        n_actions = env.action_space.shape[0]
+
+        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space, obs_ndim=obs_ndim)
+        self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=self.policy_lr)
+
+        self.q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions, obs_ndim=obs_ndim)
+        self.target_q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions, obs_ndim=obs_ndim)
+
+        self.target_q_network.load_state_dict(self.q_network.state_dict())
+
+        self.q_network_optimizer = optim.Adam(self.q_network.parameters(), lr=self.q_lr)
+
+        self.replay_buffer = ReplayBuffer(
+            capacity=self.replay_buffer_size, observation_shape=env.observation_space.shape, n_actions=n_actions
+        )
+
+        if self.automatic_entropy_tuning:
+            self.target_entropy = -torch.prod(torch.Tensor(env.action_space.shape).to(DEVICE)).item()
+            print("TARGET ENTROPY: {0}".format(self.target_entropy))
+            self.log_alpha = torch.tensor(-1.6, requires_grad=True, device=DEVICE)
+            self.alpha_optimizer = optim.Adam([self.log_alpha], lr=self.alpha_lr)
+            self.alpha = self.log_alpha.exp().item()
+        else:
+            self.alpha = 0.005
+
+        if self.use_rnd:
+            self.rnd_model = RNDModel(
+                n_features=n_features,
+                hidden_dim=config.get("rnd_hidden_dim", 128),
+                output_dim=config.get("rnd_output_dim", 128),
+            )
+            self.rnd_optimizer = optim.Adam(self.rnd_model.predictor.parameters(), lr=self.rnd_lr)
+            self.obs_rms = RunningMeanStd(shape=(n_features,))
+            self.intrinsic_reward_rms = RunningMeanStd(shape=())
+
+        self.time_steps = 0
+        self.training_time_steps = 0
+
+        self.max_alpha = 5.0
+
+        self.total_train_start_time = None
+
+        if self.resume_checkpoint_path:
+            self.load_checkpoint(os.path.join(MODEL_DIR, self.resume_checkpoint_path), load_alpha=self.resume_load_alpha, load_optimizers=self.resume_load_optimizers)
+
+    def load_checkpoint(self, checkpoint_path: str, load_alpha: bool = False, load_optimizers: bool = False) -> None:
+        checkpoint = torch.load(checkpoint_path, map_location=DEVICE, weights_only=False)
+
+        self.policy.load_state_dict(checkpoint["policy"])
+        self.q_network.load_state_dict(checkpoint["q_network"])
+        self.target_q_network.load_state_dict(checkpoint["target_q_network"])
+        self.time_steps = checkpoint["time_steps"]
+        self.training_time_steps = checkpoint["training_time_steps"]
+
+        if load_alpha:
+            self.alpha = checkpoint["alpha"]
+
+            if self.automatic_entropy_tuning and "log_alpha" in checkpoint:
+                with torch.no_grad():
+                    self.log_alpha.copy_(checkpoint["log_alpha"])
+
+        if load_optimizers:
+            self.policy_optimizer.load_state_dict(checkpoint["policy_optimizer"])
+            self.q_network_optimizer.load_state_dict(checkpoint["q_network_optimizer"])
+            if self.automatic_entropy_tuning and "alpha_optimizer" in checkpoint:
+                self.alpha_optimizer.load_state_dict(checkpoint["alpha_optimizer"])
+
+        if self.use_rnd and "rnd_model" in checkpoint:
+            self.rnd_model.load_state_dict(checkpoint["rnd_model"])
+            self.obs_rms.mean = checkpoint["obs_rms_mean"]
+            self.obs_rms.var = checkpoint["obs_rms_var"]
+            self.obs_rms.count = checkpoint["obs_rms_count"]
+            self.intrinsic_reward_rms.mean = checkpoint["intrinsic_reward_rms_mean"]
+            self.intrinsic_reward_rms.var = checkpoint["intrinsic_reward_rms_var"]
+            self.intrinsic_reward_rms.count = checkpoint["intrinsic_reward_rms_count"]
+
+            if load_optimizers and "rnd_optimizer" in checkpoint:
+                self.rnd_optimizer.load_state_dict(checkpoint["rnd_optimizer"])
+
+        print(
+            "Resumed from checkpoint: {0} (time_steps={1:,}, training_time_steps={2:,}, optimizers_loaded={3})".format(
+                checkpoint_path, self.time_steps, self.training_time_steps, load_optimizers
+            )
+        )
+
+    def _normalize_obs(self, flat_obs: np.ndarray) -> np.ndarray:
+        norm_obs = (flat_obs - self.obs_rms.mean) / (self.obs_rms.std + 1e-8)
+        return np.clip(norm_obs, -5.0, 5.0).astype(np.float32)
+
+    def _normalize_obs_batch(self, obs: torch.Tensor) -> torch.Tensor:
+        mean = torch.as_tensor(self.obs_rms.mean, dtype=torch.float32, device=DEVICE)
+        std = torch.as_tensor(self.obs_rms.std, dtype=torch.float32, device=DEVICE)
+        return torch.clamp((obs - mean) / (std + 1e-8), -5.0, 5.0)
+
+    def compute_intrinsic_reward(self, observation: np.ndarray) -> float:
+        flat_obs = observation.reshape(-1).astype(np.float32)
+        self.obs_rms.update(flat_obs[np.newaxis, :])
+
+        norm_obs = self._normalize_obs(flat_obs)
+        norm_obs_tensor = torch.as_tensor(norm_obs, dtype=torch.float32, device=DEVICE)
+
+        with torch.no_grad():
+            predict_feature, target_feature = self.rnd_model(norm_obs_tensor)
+            intrinsic_reward = (predict_feature - target_feature).pow(2).mean().item()
+
+        self.intrinsic_reward_rms.update(np.array([intrinsic_reward]))
+        return intrinsic_reward / (self.intrinsic_reward_rms.std.item() + 1e-8)
+
+    def train_loop(self) -> None:
+        self.total_train_start_time = time.time()
+
+        validation_episode_reward_avg = -100
+        policy_loss = q_1_td_loss = q_2_td_loss = alpha_loss = mu = entropy = rnd_loss = 0.0
+
+        is_terminated = False
+
+        for n_episode in range(1, self.max_num_episodes + 1):
+            episode_reward = 0
+            episode_intrinsic_reward = 0
+
+            observation, _ = self.env.reset()
+
+            done = False
+
+            while not done:
+                self.time_steps += 1
+
+                if self.time_steps < self.learning_starts:
+                    action = self.env.action_space.sample()
+                else:
+                    action = self.policy.get_action(observation)
+
+                next_observation, reward, terminated, truncated, _ = self.env.step(action)
+
+                episode_reward += reward
+
+                if self.use_rnd:
+                    intrinsic_reward = self.compute_intrinsic_reward(next_observation)
+                    episode_intrinsic_reward += intrinsic_reward
+                    train_reward = reward + self.intrinsic_reward_coef * intrinsic_reward
+                else:
+                    train_reward = reward
+
+                self.replay_buffer.append(observation, action, next_observation, train_reward, terminated)
+
+                observation = next_observation
+                done = terminated or truncated
+
+                if self.time_steps % self.steps_between_train == 0 and self.time_steps > self.batch_size:
+                    policy_loss, q_1_td_loss, q_2_td_loss, alpha_loss, mu, entropy, rnd_loss = self.train()
+
+                if self.time_steps % self.validation_time_steps_interval == 0:
+                    validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
+
+                    self.model_save(validation_episode_reward_avg)
+                    if validation_episode_reward_avg > self.episode_reward_avg_solved:
+                        print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
+                        is_terminated = True
+
+
+            if n_episode % self.print_episode_interval == 0:
+                print(
+                    "[Epi. {:3,}, Time Steps {:6,}]".format(n_episode, self.time_steps),
+                    "Epi. Reward: {:>9.3f},".format(episode_reward),
+                    "Policy L.: {:>7.3f},".format(policy_loss),
+                    "Critic L.: {:>7.3f}, {:>7.3f}".format(q_1_td_loss, q_2_td_loss),
+                    "Alpha L.: {:>7.3f},".format(alpha_loss),
+                    "Alpha: {:>7.3f},".format(self.alpha),
+                    "Entropy: {:>7.3f},".format(entropy),
+                    "RND L.: {:>7.3f},".format(rnd_loss),
+                    "Train Steps: {:5,}".format(self.training_time_steps),
+                )
+                if self.use_wandb:
+                    self.log_wandb(
+                        validation_episode_reward_avg,
+                        episode_reward,
+                        episode_intrinsic_reward,
+                        policy_loss,
+                        q_1_td_loss, q_2_td_loss,
+                        alpha_loss,
+                        mu,
+                        entropy,
+                        rnd_loss,
+                        n_episode,
+                    )
+
+            if is_terminated:
+                if self.wandb:
+                    for _ in range(5):
+                        self.log_wandb(
+                            validation_episode_reward_avg,
+                            episode_reward,
+                            episode_intrinsic_reward,
+                            policy_loss,
+                            q_1_td_loss, q_2_td_loss,
+                            alpha_loss,
+                            mu,
+                            entropy,
+                            rnd_loss,
+                            n_episode,
+                        )
+                break
+
+        total_training_time = time.time() - self.total_train_start_time
+        total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
+        print("Total Training End : {}".format(total_training_time))
+        if self.use_wandb:
+            self.wandb.finish()
+
+    def log_wandb(
+        self,
+        validation_episode_reward_avg: float,
+        episode_reward: float,
+        episode_intrinsic_reward: float,
+        policy_loss: float,
+        q_1_td_loss: float, q_2_td_loss: float,
+        alpha_loss: float,
+        mu: float,
+        entropy: float,
+        rnd_loss: float,
+        n_episode: float,
+    ) -> None:
+        self.wandb.log(
+            {
+                "[VALIDATION] Mean Episode Reward ({0} Episodes)".format(
+                    self.validation_num_episodes
+                ): validation_episode_reward_avg,
+                "[TRAIN] episode reward": episode_reward,
+                "[TRAIN] episode intrinsic reward": episode_intrinsic_reward,
+                "[TRAIN] policy loss": policy_loss,
+                "[TRAIN] critic 1 loss": q_1_td_loss,
+                "[TRAIN] critic 2 loss": q_2_td_loss,
+                "[TRAIN] alpha loss": alpha_loss,
+                "[TRAIN] alpha": self.alpha,
+                "[TRAIN] mu": mu,
+                "[TRAIN] entropy": entropy,
+                "[TRAIN] rnd loss": rnd_loss,
+                "[TRAIN] Replay buffer": self.replay_buffer.size(),
+                "training episode": n_episode,
+                "training steps": self.training_time_steps,
+            }
+        )
+
+    def train(self):
+        self.training_time_steps += 1
+
+        observations, actions, next_observations, rewards, dones = self.replay_buffer.sample(self.batch_size)
+
+        ####################
+        # Q NETWORK UPDATE #
+        ####################
+        with torch.no_grad():
+            next_state_action, next_state_log_pi, _, _ = self.policy.sample(next_observations)
+            qf1_next_target, qf2_next_target = self.target_q_network(next_observations, next_state_action)
+            min_qf_next_target = torch.min(qf1_next_target, qf2_next_target) - self.alpha * next_state_log_pi
+            min_qf_next_target[dones] = 0.0
+            target_values = rewards + self.gamma * min_qf_next_target
+
+        # Two Q-functions to mitigate positive bias in the policy improvement step
+        qf1, qf2 = self.q_network(observations, actions)
+        qf1_loss = F.mse_loss(qf1, target_values)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+        qf2_loss = F.mse_loss(qf2, target_values)  # JQ = 𝔼(st,at)~D[0.5(Q1(st,at) - r(st,at) - γ(𝔼st+1~p[V(st+1)]))^2]
+        qf_loss = qf1_loss + qf2_loss
+
+        self.q_network_optimizer.zero_grad()
+        qf_loss.backward()
+        nn.utils.clip_grad_norm_(self.q_network.parameters(), 3.0)
+        self.q_network_optimizer.step()
+
+        #################
+        # Policy UPDATE #
+        #################
+        sample_actions, log_pi, mu, entropy = self.policy.sample(observations, reparameterization_trick=True)
+
+        qf1_pi, qf2_pi = self.q_network(observations, sample_actions)
+        min_qf_pi = torch.min(qf1_pi, qf2_pi)
+
+        policy_loss = -1.0 * (min_qf_pi - self.alpha * log_pi).mean()  # Jπ = 𝔼st∼D,εt∼N[α * logπ(f(εt;st)|st) − Q(st,f(εt;st))]
+        #print(min_qf_pi.max(), self.alpha, log_pi.max(), (min_qf_pi - self.alpha * log_pi).mean(), "!!!!!!!!!!!!!!!!!!!!!!!!")
+        self.policy_optimizer.zero_grad()
+        policy_loss.backward()
+        nn.utils.clip_grad_norm_(self.policy.parameters(), 3.0)
+        self.policy_optimizer.step()
+
+        #################
+        # Alpha UPDATE #
+        #################
+        if self.automatic_entropy_tuning:
+            with torch.no_grad():
+                _, log_pi, _, _ = self.policy.sample(observations)
+
+            alpha_loss = (-self.log_alpha.exp() * (log_pi + self.target_entropy).detach()).mean()
+
+            # print(self.target_entropy, (log_pi + self.target_entropy).detach().mean(), self.log_alpha.exp(), alpha_loss, "!!!!!!!!!!!!!!")
+            self.alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            nn.utils.clip_grad_norm_([self.log_alpha], 3.0)
+            self.alpha_optimizer.step()
+
+            # log_alpha를 기반으로 알파 값 계산 (상한선을 설정)
+            with torch.no_grad():
+                self.alpha = self.log_alpha.exp().item()
+
+                # 클램핑 기법을 사용해 알파 값이 상한선을 넘지 않도록 제한
+                if self.alpha > self.max_alpha:
+                    self.log_alpha.data = torch.log(torch.tensor(self.max_alpha))
+        else:
+            alpha_loss = torch.tensor(0.).to(DEVICE)
+
+        ###############################
+        # RND PREDICTOR UPDATE        #
+        ###############################
+        if self.use_rnd:
+            flat_next_observations = next_observations.reshape(self.batch_size, -1)
+            norm_next_observations = self._normalize_obs_batch(flat_next_observations)
+
+            predict_feature, target_feature = self.rnd_model(norm_next_observations)
+            rnd_loss = F.mse_loss(predict_feature, target_feature)
+
+            self.rnd_optimizer.zero_grad()
+            rnd_loss.backward()
+            nn.utils.clip_grad_norm_(self.rnd_model.predictor.parameters(), 3.0)
+            self.rnd_optimizer.step()
+        else:
+            rnd_loss = torch.tensor(0.).to(DEVICE)
+
+        # sync, TAU: 0.995
+        self.soft_synchronize_models(
+            source_model=self.q_network, target_model=self.target_q_network, tau=self.soft_update_tau
+        )
+
+        return policy_loss.item(), qf1_loss.item(), qf2_loss.item(), alpha_loss.item(), mu.mean().item(), entropy.item(), rnd_loss.item()
+
+    def soft_synchronize_models(self, source_model, target_model, tau):
+        source_model_state = source_model.state_dict()
+        target_model_state = target_model.state_dict()
+        for k, v in source_model_state.items():
+            target_model_state[k] = tau * target_model_state[k] + (1.0 - tau) * v
+        target_model.load_state_dict(target_model_state)
+
+    def model_save(self, validation_episode_reward_avg: float) -> None:
+        filename = "sac_rnd_{0}_{1:4.1f}_{2}.pth".format(self.env_name, validation_episode_reward_avg, self.current_time)
+        torch.save(self.policy.state_dict(), os.path.join(MODEL_DIR, filename))
+
+        copyfile(src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "sac_rnd_{0}_latest.pth".format(self.env_name)))
+
+        checkpoint = {
+            "policy": self.policy.state_dict(),
+            "q_network": self.q_network.state_dict(),
+            "target_q_network": self.target_q_network.state_dict(),
+            "policy_optimizer": self.policy_optimizer.state_dict(),
+            "q_network_optimizer": self.q_network_optimizer.state_dict(),
+            "time_steps": self.time_steps,
+            "training_time_steps": self.training_time_steps,
+            "alpha": self.alpha,
+        }
+        if self.automatic_entropy_tuning:
+            checkpoint["log_alpha"] = self.log_alpha.detach().cpu()
+            checkpoint["alpha_optimizer"] = self.alpha_optimizer.state_dict()
+
+        if self.use_rnd:
+            checkpoint["rnd_model"] = self.rnd_model.state_dict()
+            checkpoint["rnd_optimizer"] = self.rnd_optimizer.state_dict()
+            checkpoint["obs_rms_mean"] = self.obs_rms.mean
+            checkpoint["obs_rms_var"] = self.obs_rms.var
+            checkpoint["obs_rms_count"] = self.obs_rms.count
+            checkpoint["intrinsic_reward_rms_mean"] = self.intrinsic_reward_rms.mean
+            checkpoint["intrinsic_reward_rms_var"] = self.intrinsic_reward_rms.var
+            checkpoint["intrinsic_reward_rms_count"] = self.intrinsic_reward_rms.count
+
+        torch.save(checkpoint, os.path.join(MODEL_DIR, "sac_rnd_{0}_latest_checkpoint.pth".format(self.env_name)))
+
+    def validate(self) -> tuple[np.ndarray, float]:
+        episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
+
+        for i in range(self.validation_num_episodes):
+            episode_reward = 0
+
+            observation, _ = self.test_env.reset()
+
+            done = False
+
+            while not done:
+                action = self.policy.get_action(observation, exploration=False)
+
+                next_observation, reward, terminated, truncated, _ = self.test_env.step(action)
+
+                episode_reward += reward
+                observation = next_observation
+                done = terminated or truncated
+
+            episode_reward_lst[i] = episode_reward
+
+        episode_reward_avg = np.average(episode_reward_lst)
+
+        total_training_time = time.time() - self.total_train_start_time
+        total_training_time = time.strftime("%H:%M:%S", time.gmtime(total_training_time))
+
+        print(
+            "[Validation Episode Reward: {0}] Average: {1:.3f}, Elapsed Time: {2}".format(
+                episode_reward_lst, episode_reward_avg, total_training_time
+            )
+        )
+        return episode_reward_lst, episode_reward_avg
+
+
+def main() -> None:
+    print("TORCH VERSION:", torch.__version__)
+    ENV_NAME = "BipedalWalkerHardcore-v3"
+
+    config = {
+        "env_name": ENV_NAME,
+        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
+        "max_num_episodes": 100_000,
+        "learning_starts": 10_000,
+        "batch_size": 256,
+        "steps_between_train": 1,
+        "replay_buffer_size": 1_000_000,
+        "policy_lr": 7e-4,
+        "q_lr": 7e-4,
+        "alpha_lr": 7e-4,
+        "gamma": 0.99,
+        "soft_update_tau": 0.99,
+        "validation_time_steps_interval": 30_000,
+        "validation_num_episodes": 3,
+        "episode_reward_avg_solved": 300,
+        "automatic_entropy_tuning": True,
+        "print_episode_interval": 10,
+        "resume_checkpoint_path": None,
+        "resume_load_optimizers": False,        # If True, also restore optimizer states (Adam moments) from the checkpoint.
+        "resume_load_alpha": False,  # If True, also restore alpha value (and log_alpha if using automatic entropy tuning) from the checkpoint.
+
+        # Curiosity-driven exploration (Random Network Distillation)
+        "use_rnd": True,
+        "rnd_hidden_dim": 128,
+        "rnd_output_dim": 128,
+        "rnd_lr": 1e-4,
+        "intrinsic_reward_coef": 0.01,  # weight of the (normalized) intrinsic reward added to the extrinsic reward
+    }
+
+    env = make_env(ENV_NAME, config["stack_size"])
+    test_env = make_env(ENV_NAME, config["stack_size"])
+
+    use_wandb = True
+    sac = SAC(env=env, test_env=test_env, config=config, use_wandb=use_wandb)
+    sac.train_loop()
+
+
+if __name__ == "__main__":
+    main()

@@ -423,9 +423,9 @@ def main() -> None:
         "per_beta_start": 0.4,           # initial importance-sampling correction exponent
         "per_beta_frames": 1_000_000,    # number of train() calls over which beta is annealed to 1.0
         "per_epsilon": 1e-6,             # added to |TD-error| before raising to per_alpha (avoids zero priority)
-        "resume_checkpoint_path": None,
+        "resume_checkpoint_path": "sac_BipedalWalkerHardcore-v3_latest_checkpoint.pth",
         "resume_load_optimizers": False,        # If True, also restore optimizer states (Adam moments) from the checkpoint.
-        "resume_load_alpha": False,  # If True, also restore alpha value (and log_alpha if using automatic entropy tuning) from the checkpoint.
+        "resume_load_alpha": True,  # If True, also restore alpha value (and log_alpha if using automatic entropy tuning) from the checkpoint.
     }
 
     env = make_env(ENV_NAME, config["stack_size"])

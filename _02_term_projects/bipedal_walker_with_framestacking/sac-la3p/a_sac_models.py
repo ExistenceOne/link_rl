@@ -15,7 +15,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
 LOG_SIG_MAX = 2
-LOG_SIG_MIN = -5
+LOG_SIG_MIN = -20
 epsilon = 1e-6
 
 

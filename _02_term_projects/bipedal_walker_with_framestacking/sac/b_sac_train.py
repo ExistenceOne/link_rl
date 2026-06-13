@@ -304,7 +304,7 @@ class SAC:
 
                 # 클램핑 기법을 사용해 알파 값이 상한선을 넘지 않도록 제한
                 if self.alpha > self.max_alpha:
-                    self.log_alpha.data = torch.log(torch.tensor(self.max_alpha))
+                    self.log_alpha.data = torch.log(torch.tensor(self.max_alpha, device=DEVICE))
         else:
             alpha_loss = torch.tensor(0.).to(DEVICE)
 

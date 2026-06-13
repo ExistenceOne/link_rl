@@ -8,10 +8,14 @@ import torch
 from a_sac_models import MODEL_DIR, GaussianPolicy
 
 
-def make_env(env_name: str, stack_size: int, render_mode: str = None) -> gym.Env:
+def make_env(env_name: str, model_filename: str, stack_size: int, render_mode: str = None) -> gym.Env:
     env = gym.make(env_name, render_mode=render_mode)
     if stack_size and stack_size > 1:
         env = gym.wrappers.FrameStackObservation(env, stack_size=stack_size)
+    env = gym.wrappers.RecordVideo(
+        env=env, video_folder="videos",
+        name_prefix="sac_{0}".format(model_filename)
+    )
     return env
 
 
@@ -39,7 +43,7 @@ def test(env: gym.Env, actor: GaussianPolicy, num_episodes: int) -> None:
 
 
 def main_play(num_episodes: int, env_name: str, stack_size: int, model_filename: str) -> None:
-    env = make_env(env_name, stack_size, render_mode="human")
+    env = make_env(env_name, model_filename, stack_size, render_mode="rgb_array")
 
     obs_shape = env.observation_space.shape
     n_features = int(np.prod(obs_shape))

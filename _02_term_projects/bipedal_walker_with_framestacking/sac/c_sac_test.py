@@ -8,6 +8,13 @@ import torch
 from a_sac_models import MODEL_DIR, GaussianPolicy
 
 
+def make_env(env_name: str, stack_size: int, render_mode: str = None) -> gym.Env:
+    env = gym.make(env_name, render_mode=render_mode)
+    if stack_size and stack_size > 1:
+        env = gym.wrappers.FrameStackObservation(env, stack_size=stack_size)
+    return env
+
+
 def test(env: gym.Env, actor: GaussianPolicy, num_episodes: int) -> None:
     for i in range(num_episodes):
         episode_reward = 0  # cumulative_reward
@@ -32,14 +39,15 @@ def test(env: gym.Env, actor: GaussianPolicy, num_episodes: int) -> None:
         print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(i, episode_steps, episode_reward))
 
 
-def main_play(num_episodes: int, env_name: str) -> None:
-    env = gym.make(env_name, render_mode="human")
-    env = gym.wrappers.FrameStackObservation(env, stack_size=4)
+def main_play(num_episodes: int, env_name: str, stack_size: int) -> None:
+    env = make_env(env_name, stack_size, render_mode="human")
 
-    n_features = int(np.prod(env.observation_space.shape))  # (4,24) -> 96
+    obs_shape = env.observation_space.shape
+    n_features = int(np.prod(obs_shape))  # (4,24) -> 96; (24,) -> 24
+    obs_ndim = len(obs_shape)  # 2 when frame-stacked, 1 otherwise
     n_actions = env.action_space.shape[0]
 
-    policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space)
+    policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space, obs_ndim=obs_ndim)
     model_params = torch.load(os.path.join(MODEL_DIR, "sac_{0}_latest.pth".format(env_name)), weights_only=True)
     policy.load_state_dict(model_params)
     policy.eval()
@@ -52,5 +60,6 @@ def main_play(num_episodes: int, env_name: str) -> None:
 if __name__ == "__main__":
     NUM_EPISODES = 3
     ENV_NAME = "BipedalWalkerHardcore-v3"
+    STACK_SIZE = 4  # must match the stack_size used during training
 
-    main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME)
+    main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME, stack_size=STACK_SIZE)

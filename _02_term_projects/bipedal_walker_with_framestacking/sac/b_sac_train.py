@@ -17,6 +17,13 @@ from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, ReplayBuffer, 
 import wandb
 
 
+def make_env(env_name: str, stack_size: int, render_mode: str = None) -> gym.Env:
+    env = gym.make(env_name, render_mode=render_mode)
+    if stack_size and stack_size > 1:
+        env = gym.wrappers.FrameStackObservation(env, stack_size=stack_size)
+    return env
+
+
 class SAC:
     def __init__(self, env: gym.Env, test_env: gym.Env, config: dict, use_wandb: bool):
         self.env = env
@@ -48,14 +55,16 @@ class SAC:
         self.learning_starts = config["learning_starts"]
         self.automatic_entropy_tuning = config["automatic_entropy_tuning"]
 
-        n_features = int(np.prod(env.observation_space.shape))  # (4,24) -> 96
+        obs_shape = env.observation_space.shape
+        n_features = int(np.prod(obs_shape))  # (4,24) -> 96; (24,) -> 24
+        obs_ndim = len(obs_shape)  # 2 when frame-stacked, 1 otherwise
         n_actions = env.action_space.shape[0]
 
-        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space)
+        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space, obs_ndim=obs_ndim)
         self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=self.policy_lr)
 
-        self.q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions)
-        self.target_q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions)
+        self.q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions, obs_ndim=obs_ndim)
+        self.target_q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions, obs_ndim=obs_ndim)
 
         self.target_q_network.load_state_dict(self.q_network.state_dict())
 
@@ -119,9 +128,9 @@ class SAC:
                 if self.time_steps % self.validation_time_steps_interval == 0:
                     validation_episode_reward_lst, validation_episode_reward_avg = self.validate()
 
+                    self.model_save(validation_episode_reward_avg)
                     if validation_episode_reward_avg > self.episode_reward_avg_solved:
                         print("Solved in {0:,} time steps ({1:,} training steps)!".format(self.time_steps, self.training_time_steps))
-                        self.model_save(validation_episode_reward_avg)
                         is_terminated = True
 
 
@@ -323,14 +332,9 @@ def main() -> None:
     print("TORCH VERSION:", torch.__version__)
     ENV_NAME = "BipedalWalkerHardcore-v3"
 
-    # env
-    env = gym.make(ENV_NAME)
-    env = gym.wrappers.FrameStackObservation(env, stack_size=4)
-    test_env = gym.make(ENV_NAME)
-    test_env = gym.wrappers.FrameStackObservation(test_env, stack_size=4)
-
     config = {
         "env_name": ENV_NAME,
+        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
         "max_num_episodes": 100_000,
         "learning_starts": 10_000,
         "batch_size": 256,
@@ -346,8 +350,10 @@ def main() -> None:
         "episode_reward_avg_solved": 300,
         "automatic_entropy_tuning": True,
         "print_episode_interval": 10,
-        "model_save_episode_interval": 100,
     }
+
+    env = make_env(ENV_NAME, config["stack_size"])
+    test_env = make_env(ENV_NAME, config["stack_size"])
 
     use_wandb = True
     sac = SAC(env=env, test_env=test_env, config=config, use_wandb=use_wandb)

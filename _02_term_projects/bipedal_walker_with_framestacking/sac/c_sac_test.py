@@ -56,7 +56,7 @@ def main_play(num_episodes: int, env_name: str, stack_size: int, model_filename:
     policy.eval()
 
     test(env, policy, num_episodes=num_episodes)
-    sys.pause()
+    os.system("pause")
     env.close()
 
 

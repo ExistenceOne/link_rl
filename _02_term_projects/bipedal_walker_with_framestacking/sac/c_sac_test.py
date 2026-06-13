@@ -56,12 +56,11 @@ def main_play(num_episodes: int, env_name: str, stack_size: int, model_filename:
     policy.eval()
 
     test(env, policy, num_episodes=num_episodes)
-    os.system("pause")
     env.close()
 
 
 if __name__ == "__main__":
-    NUM_EPISODES = 3
+    NUM_EPISODES = 4
     ENV_NAME = "BipedalWalkerHardcore-v3"
     STACK_SIZE = 1  # must match the stack_size used during training
 

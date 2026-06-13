@@ -323,25 +323,25 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "stack_size": 4,                 # 1 disables frame stacking; >1 stacks that many frames
-        "max_generations": 5_000,
+        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
+        "max_generations": 10_000,
         "batch_size": 256,
-        "policy_lr": 3e-4,
-        "q_lr": 3e-4,
-        "alpha_lr": 3e-5,
+        "policy_lr": 7e-4,
+        "q_lr": 7e-4,
+        "alpha_lr": 7e-4,
         "gamma": 0.99,
-        "soft_update_tau": 0.995,
+        "soft_update_tau": 0.99,
         "replay_buffer_size": 1_000_000,
-        "learning_starts": 10_000,
+        "learning_starts": 1_000,
         "automatic_entropy_tuning": True,
         "n_grad_steps": 200,
         # CEM
         "pop_size": 10,
         "n_elite": 5,
         "eval_episodes": 1,
-        "sigma_init": 0.05,
-        "noise_init": 0.05,
-        "noise_end": 0.005,
+        "sigma_init": 1e-3,
+        "noise_init": 1e-3,
+        "noise_end": 1e-5,
         "noise_decay": 0.999,
         # logging / validation
         "print_generation_interval": 1,

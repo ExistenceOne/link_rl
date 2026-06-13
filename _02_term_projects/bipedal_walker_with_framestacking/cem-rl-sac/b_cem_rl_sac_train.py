@@ -101,14 +101,48 @@ class CEM_RL_SAC:
             self.alpha = 0.005
         self.max_alpha = 5.0
 
-        # CEM distribution over the flattened policy parameters
+        self.time_steps = 0
+        self.training_time_steps = 0
+        self.total_train_start_time = None
+
+        self.resume_checkpoint_path = config.get("resume_checkpoint_path")
+        self.resume_load_alpha = config.get("resume_load_alpha", False)
+        self.resume_load_optimizers = config.get("resume_load_optimizers", False)
+        if self.resume_checkpoint_path:
+            self.load_checkpoint(os.path.join(MODEL_DIR, self.resume_checkpoint_path), load_alpha=self.resume_load_alpha, load_optimizers=self.resume_load_optimizers)
+
+        # CEM distribution over the flattened policy parameters (re-centered on the actor above, if warm-started)
         self.mean = parameters_to_vector(self.actor.parameters()).detach().clone()
         self.n_params = self.mean.numel()
         self.var = torch.full_like(self.mean, self.sigma_init ** 2)
 
-        self.time_steps = 0
-        self.training_time_steps = 0
-        self.total_train_start_time = None
+    def load_checkpoint(self, checkpoint_path: str, load_alpha: bool = False, load_optimizers: bool = False) -> None:
+        checkpoint = torch.load(checkpoint_path, map_location=DEVICE, weights_only=False)
+
+        self.actor.load_state_dict(checkpoint["policy"])
+        self.q_network.load_state_dict(checkpoint["q_network"])
+        self.target_q_network.load_state_dict(checkpoint["target_q_network"])
+        self.time_steps = checkpoint["time_steps"]
+        self.training_time_steps = checkpoint["training_time_steps"]
+
+        if load_alpha:
+            self.alpha = checkpoint["alpha"]
+
+            if self.automatic_entropy_tuning and "log_alpha" in checkpoint:
+                with torch.no_grad():
+                    self.log_alpha.copy_(checkpoint["log_alpha"])
+
+        if load_optimizers:
+            self.policy_optimizer.load_state_dict(checkpoint["policy_optimizer"])
+            self.q_network_optimizer.load_state_dict(checkpoint["q_network_optimizer"])
+            if self.automatic_entropy_tuning and "alpha_optimizer" in checkpoint:
+                self.alpha_optimizer.load_state_dict(checkpoint["alpha_optimizer"])
+
+        print(
+            "Resumed from checkpoint: {0} (time_steps={1:,}, training_time_steps={2:,}, optimizers_loaded={3})".format(
+                checkpoint_path, self.time_steps, self.training_time_steps, load_optimizers
+            )
+        )
 
     def _new_policy(self) -> GaussianPolicy:
         return GaussianPolicy(
@@ -349,6 +383,12 @@ def main() -> None:
         "validation_num_episodes": 3,
         "episode_reward_avg_solved": 300,
         "save_generation_interval": 10,
+        # Warm start: path (relative to MODEL_DIR) to a "*_latest_checkpoint.pth" produced by sac/sac-rnd's
+        # b_sac_train.py. Loads actor + critic and re-centers the CEM mean on the loaded actor, so the
+        # population starts from a policy that can already walk instead of random weights.
+        "resume_checkpoint_path": None,  # e.g. "../sac/models/sac_BipedalWalkerHardcore-v3_latest_checkpoint.pth"
+        "resume_load_optimizers": False,
+        "resume_load_alpha": False,
     }
 
     env = make_env(ENV_NAME, config["stack_size"])

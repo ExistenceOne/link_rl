@@ -17,13 +17,6 @@ from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, ReplayBuffer, 
 import wandb
 
 
-def make_env(env_name: str, stack_size: int, render_mode: str = None) -> gym.Env:
-    env = gym.make(env_name, render_mode=render_mode)
-    if stack_size and stack_size > 1:
-        env = gym.wrappers.FrameStackObservation(env, stack_size=stack_size)
-    return env
-
-
 class SAC:
     def __init__(self, env: gym.Env, test_env: gym.Env, config: dict, use_wandb: bool):
         self.env = env
@@ -35,7 +28,7 @@ class SAC:
         self.current_time = datetime.now().astimezone().strftime("%Y-%m-%d_%H-%M-%S")
 
         if use_wandb:
-            self.wandb = wandb.init(project="sac_{0}_with_framestacking".format(self.env_name), name=self.current_time, config=config)
+            self.wandb = wandb.init(project="sac_{0}".format(self.env_name), name=self.current_time, config=config)
         else:
             self.wandb = None
 
@@ -58,16 +51,14 @@ class SAC:
         self.resume_load_alpha = config.get("resume_load_alpha", False)
         self.resume_load_optimizers = config.get("resume_load_optimizers", False)
 
-        obs_shape = env.observation_space.shape
-        n_features = int(np.prod(obs_shape))  # (4,24) -> 96; (24,) -> 24
-        obs_ndim = len(obs_shape)  # 2 when frame-stacked, 1 otherwise
+        n_features = env.observation_space.shape[0]
         n_actions = env.action_space.shape[0]
 
-        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space, obs_ndim=obs_ndim)
+        self.policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space)
         self.policy_optimizer = optim.Adam(self.policy.parameters(), lr=self.policy_lr)
 
-        self.q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions, obs_ndim=obs_ndim)
-        self.target_q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions, obs_ndim=obs_ndim)
+        self.q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions)
+        self.target_q_network = SoftQNetwork(n_features=n_features, n_actions=n_actions)
 
         self.target_q_network.load_state_dict(self.q_network.state_dict())
 
@@ -384,7 +375,6 @@ def main() -> None:
 
     config = {
         "env_name": ENV_NAME,
-        "stack_size": 1,                 # 1 disables frame stacking; >1 stacks that many frames
         "max_num_episodes": 100_000,
         "learning_starts": 10_000,
         "batch_size": 256,
@@ -405,8 +395,8 @@ def main() -> None:
         "resume_load_alpha": False,  # If True, also restore alpha value (and log_alpha if using automatic entropy tuning) from the checkpoint.
     }
 
-    env = make_env(ENV_NAME, config["stack_size"])
-    test_env = make_env(ENV_NAME, config["stack_size"])
+    env = gym.make(ENV_NAME)
+    test_env = gym.make(ENV_NAME)
 
     use_wandb = True
     sac = SAC(env=env, test_env=test_env, config=config, use_wandb=use_wandb)

@@ -2,16 +2,13 @@ import os
 import sys
 
 import gymnasium as gym
-import numpy as np
 import torch
 
 from a_sac_models import MODEL_DIR, GaussianPolicy
 
 
-def make_env(env_name: str, model_filename: str, stack_size: int, render_mode: str = None) -> gym.Env:
+def make_env(env_name: str, model_filename: str, render_mode: str = None) -> gym.Env:
     env = gym.make(env_name, render_mode=render_mode)
-    if stack_size and stack_size > 1:
-        env = gym.wrappers.FrameStackObservation(env, stack_size=stack_size)
     env = gym.wrappers.RecordVideo(
         env=env, video_folder="videos",
         name_prefix="sac_{0}".format(model_filename)
@@ -42,15 +39,13 @@ def test(env: gym.Env, actor: GaussianPolicy, num_episodes: int) -> None:
         print("[EPISODE: {0}] EPISODE_STEPS: {1:3d}, EPISODE REWARD: {2:4.1f}".format(i, episode_steps, episode_reward))
 
 
-def main_play(num_episodes: int, env_name: str, stack_size: int, model_filename: str) -> None:
-    env = make_env(env_name, model_filename, stack_size, render_mode="rgb_array")
+def main_play(num_episodes: int, env_name: str, model_filename: str) -> None:
+    env = make_env(env_name, model_filename, render_mode="rgb_array")
 
-    obs_shape = env.observation_space.shape
-    n_features = int(np.prod(obs_shape))
-    obs_ndim = len(obs_shape)
+    n_features = env.observation_space.shape[0]
     n_actions = env.action_space.shape[0]
 
-    policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space, obs_ndim=obs_ndim)
+    policy = GaussianPolicy(n_features=n_features, n_actions=n_actions, action_space=env.action_space)
     model_params = torch.load(os.path.join(MODEL_DIR, model_filename), weights_only=True)
     policy.load_state_dict(model_params)
     policy.eval()
@@ -62,11 +57,10 @@ def main_play(num_episodes: int, env_name: str, stack_size: int, model_filename:
 if __name__ == "__main__":
     NUM_EPISODES = 4
     ENV_NAME = "BipedalWalkerHardcore-v3"
-    STACK_SIZE = 1  # must match the stack_size used during training
 
     if len(sys.argv) > 1:
         MODEL_FILENAME = sys.argv[1]
     else:
         MODEL_FILENAME = "sac_{0}_latest.pth".format(ENV_NAME)
 
-    main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME, stack_size=STACK_SIZE, model_filename=MODEL_FILENAME)
+    main_play(num_episodes=NUM_EPISODES, env_name=ENV_NAME, model_filename=MODEL_FILENAME)

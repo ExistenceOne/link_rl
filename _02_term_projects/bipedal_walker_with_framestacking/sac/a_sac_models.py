@@ -19,22 +19,9 @@ LOG_SIG_MIN = -5
 epsilon = 1e-6
 
 
-def _flatten_obs(state, obs_ndim: int):
-    """Flatten the trailing `obs_ndim` dims into the feature dim while keeping a possible batch dim.
-
-    - stacked obs (obs_ndim == 2): (B, 4, 24) -> (B, 96); (4, 24) -> (96,)
-    - unstacked obs (obs_ndim == 1): no-op, keeps (B, 24) / (24,)
-    """
-    if isinstance(state, np.ndarray):
-        state = torch.tensor(state, dtype=torch.float32, device=DEVICE)
-    return state.flatten(start_dim=-obs_ndim)
-
-
 class GaussianPolicy(nn.Module):
-    def __init__(self, n_features, n_actions, action_space=None, obs_ndim: int = 2):
+    def __init__(self, n_features, n_actions, action_space=None):
         super(GaussianPolicy, self).__init__()
-
-        self.obs_ndim = obs_ndim
 
         self.linear1 = nn.Linear(n_features, 400)
         self.linear2 = nn.Linear(400, 300)
@@ -58,7 +45,8 @@ class GaussianPolicy(nn.Module):
         self.to(DEVICE)
 
     def forward(self, state):
-        state = _flatten_obs(state, self.obs_ndim)
+        if isinstance(state, np.ndarray):
+            state = torch.tensor(state, dtype=torch.float32, device=DEVICE)
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         mean = self.mean_linear(x)
@@ -103,9 +91,8 @@ class GaussianPolicy(nn.Module):
 
 
 class SoftQNetwork(nn.Module):
-    def __init__(self, n_features, n_actions, obs_ndim: int = 2):
+    def __init__(self, n_features, n_actions):
         super().__init__()
-        self.obs_ndim = obs_ndim
 
         self.fc1_1 = nn.Linear(n_features + n_actions, 400)
         self.fc1_2 = nn.Linear(400, 300)
@@ -118,7 +105,8 @@ class SoftQNetwork(nn.Module):
         self.to(DEVICE)
 
     def forward(self, x, action) -> torch.Tensor:
-        x = _flatten_obs(x, self.obs_ndim)
+        if isinstance(x, np.ndarray):
+            x = torch.tensor(x, dtype=torch.float32, device=DEVICE)
         x = torch.cat(tensors=[x, action], dim=-1)
 
         x1 = F.relu(self.fc1_1(x))

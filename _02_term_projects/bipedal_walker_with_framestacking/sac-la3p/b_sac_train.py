@@ -8,9 +8,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import torch.optim as optim
-from gymnasium.wrappers import NormalizeReward
 
 from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, LA3PReplayBuffer, DEVICE
 

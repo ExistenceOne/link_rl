@@ -263,7 +263,6 @@ class SAC:
         else:
             alpha_loss = torch.tensor(0.).to(DEVICE)
 
-        # sync, TAU: 0.995
         self.soft_synchronize_models(
             source_model=self.q_network, target_model=self.target_q_network, tau=self.soft_update_tau
         )

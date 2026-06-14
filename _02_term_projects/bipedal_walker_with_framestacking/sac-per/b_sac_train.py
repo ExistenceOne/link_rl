@@ -67,7 +67,7 @@ class SAC:
         self.q_network_optimizer = optim.Adam(self.q_network.parameters(), lr=self.q_lr)
 
         self.replay_buffer = PrioritizedReplayBuffer(
-            capacity=self.replay_buffer_size, observation_shape=env.observation_space.shape, n_actions=n_actions,
+            capacity=self.replay_buffer_size, n_features=n_features, n_actions=n_actions,
             alpha=self.per_alpha, beta_start=self.per_beta_start, beta_frames=self.per_beta_frames, epsilon=self.per_epsilon,
         )
 

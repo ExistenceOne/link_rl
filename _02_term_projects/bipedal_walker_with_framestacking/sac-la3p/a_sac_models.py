@@ -193,7 +193,7 @@ class LA3PReplayBuffer:
     def __init__(
         self,
         capacity: int,
-        observation_shape: tuple,
+        n_features: int,
         n_actions: int,
         alpha: float = 0.4,
         min_priority: float = 1.0,
@@ -207,9 +207,9 @@ class LA3PReplayBuffer:
         self.max_priority = min_priority
 
         # Pre-allocate the entire buffer as tensors on DEVICE (assumes DEVICE is cuda)
-        self.observations = torch.zeros((capacity, *observation_shape), dtype=torch.float32, device=DEVICE)
+        self.observations = torch.zeros((capacity, n_features), dtype=torch.float32, device=DEVICE)
         self.actions = torch.zeros((capacity, n_actions), dtype=torch.float32, device=DEVICE)
-        self.next_observations = torch.zeros((capacity, *observation_shape), dtype=torch.float32, device=DEVICE)
+        self.next_observations = torch.zeros((capacity, n_features), dtype=torch.float32, device=DEVICE)
         self.rewards = torch.zeros((capacity, 1), dtype=torch.float32, device=DEVICE)
         self.dones = torch.zeros((capacity,), dtype=torch.bool, device=DEVICE)
 

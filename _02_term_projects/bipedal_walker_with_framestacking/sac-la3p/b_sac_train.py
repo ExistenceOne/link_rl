@@ -81,7 +81,7 @@ class SAC:
         self.q_network_optimizer = optim.Adam(self.q_network.parameters(), lr=self.q_lr)
 
         self.replay_buffer = LA3PReplayBuffer(
-            capacity=self.replay_buffer_size, observation_shape=env.observation_space.shape, n_actions=n_actions,
+            capacity=self.replay_buffer_size, n_features=n_features, n_actions=n_actions,
             alpha=self.la3p_alpha, min_priority=self.la3p_min_priority,
         )
 

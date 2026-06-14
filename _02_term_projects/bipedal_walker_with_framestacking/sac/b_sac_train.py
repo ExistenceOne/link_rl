@@ -62,7 +62,7 @@ class SAC:
         self.q_network_optimizer = optim.Adam(self.q_network.parameters(), lr=self.q_lr)
 
         self.replay_buffer = ReplayBuffer(
-            capacity=self.replay_buffer_size, observation_shape=env.observation_space.shape, n_actions=n_actions
+            capacity=self.replay_buffer_size, n_features=n_features, n_actions=n_actions
         )
 
         if self.automatic_entropy_tuning:

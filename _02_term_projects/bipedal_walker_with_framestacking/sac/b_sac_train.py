@@ -1,4 +1,3 @@
-# https://gymnasium.farama.org/environments/classic_control/cart_pole/
 import os
 import time
 from datetime import datetime
@@ -10,7 +9,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from gymnasium.wrappers import NormalizeReward
 
 from a_sac_models import MODEL_DIR, GaussianPolicy, SoftQNetwork, ReplayBuffer, DEVICE
 

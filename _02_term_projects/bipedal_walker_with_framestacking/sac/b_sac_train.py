@@ -47,9 +47,6 @@ class SAC:
         self.replay_buffer_size = config["replay_buffer_size"]
         self.learning_starts = config["learning_starts"]
         self.automatic_entropy_tuning = config["automatic_entropy_tuning"]
-        self.resume_checkpoint_path = config.get("resume_checkpoint_path")
-        self.resume_load_alpha = config.get("resume_load_alpha", False)
-        self.resume_load_optimizers = config.get("resume_load_optimizers", False)
 
         n_features = env.observation_space.shape[0]
         n_actions = env.action_space.shape[0]
@@ -83,37 +80,6 @@ class SAC:
         self.max_alpha = 5.0
 
         self.total_train_start_time = None
-
-        if self.resume_checkpoint_path:
-            self.load_checkpoint(os.path.join(MODEL_DIR, self.resume_checkpoint_path), load_alpha=self.resume_load_alpha, load_optimizers=self.resume_load_optimizers)
-
-    def load_checkpoint(self, checkpoint_path: str, load_alpha: bool = False, load_optimizers: bool = False) -> None:
-        checkpoint = torch.load(checkpoint_path, map_location=DEVICE, weights_only=False)
-
-        self.policy.load_state_dict(checkpoint["policy"])
-        self.q_network.load_state_dict(checkpoint["q_network"])
-        self.target_q_network.load_state_dict(checkpoint["target_q_network"])
-        self.time_steps = checkpoint["time_steps"]
-        self.training_time_steps = checkpoint["training_time_steps"]
-
-        if load_alpha:
-            self.alpha = checkpoint["alpha"]
-
-            if self.automatic_entropy_tuning and "log_alpha" in checkpoint:
-                with torch.no_grad():
-                    self.log_alpha.copy_(checkpoint["log_alpha"])
-
-        if load_optimizers:
-            self.policy_optimizer.load_state_dict(checkpoint["policy_optimizer"])
-            self.q_network_optimizer.load_state_dict(checkpoint["q_network_optimizer"])
-            if self.automatic_entropy_tuning and "alpha_optimizer" in checkpoint:
-                self.alpha_optimizer.load_state_dict(checkpoint["alpha_optimizer"])
-
-        print(
-            "Resumed from checkpoint: {0} (time_steps={1:,}, training_time_steps={2:,}, optimizers_loaded={3})".format(
-                checkpoint_path, self.time_steps, self.training_time_steps, load_optimizers
-            )
-        )
 
     def train_loop(self) -> None:
         self.total_train_start_time = time.time()
@@ -319,22 +285,6 @@ class SAC:
 
         copyfile(src=os.path.join(MODEL_DIR, filename), dst=os.path.join(MODEL_DIR, "sac_{0}_latest.pth".format(self.env_name)))
 
-        checkpoint = {
-            "policy": self.policy.state_dict(),
-            "q_network": self.q_network.state_dict(),
-            "target_q_network": self.target_q_network.state_dict(),
-            "policy_optimizer": self.policy_optimizer.state_dict(),
-            "q_network_optimizer": self.q_network_optimizer.state_dict(),
-            "time_steps": self.time_steps,
-            "training_time_steps": self.training_time_steps,
-            "alpha": self.alpha,
-        }
-        if self.automatic_entropy_tuning:
-            checkpoint["log_alpha"] = self.log_alpha.detach().cpu()
-            checkpoint["alpha_optimizer"] = self.alpha_optimizer.state_dict()
-
-        torch.save(checkpoint, os.path.join(MODEL_DIR, "sac_{0}_latest_checkpoint.pth".format(self.env_name)))
-
     def validate(self) -> tuple[np.ndarray, float]:
         episode_reward_lst = np.zeros(shape=(self.validation_num_episodes,), dtype=float)
 
@@ -390,9 +340,6 @@ def main() -> None:
         "episode_reward_avg_solved": 300,
         "automatic_entropy_tuning": True,
         "print_episode_interval": 10,
-        "resume_checkpoint_path": None, #"sac_BipedalWalkerHardcore-v3_247.8_2026-06-13_01-05-23.pth",
-        "resume_load_optimizers": False,        # If True, also restore optimizer states (Adam moments) from the checkpoint.
-        "resume_load_alpha": False,  # If True, also restore alpha value (and log_alpha if using automatic entropy tuning) from the checkpoint.
     }
 
     env = gym.make(ENV_NAME)

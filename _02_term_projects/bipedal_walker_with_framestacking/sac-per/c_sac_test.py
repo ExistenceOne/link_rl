@@ -7,15 +7,6 @@ import torch
 from a_sac_models import MODEL_DIR, GaussianPolicy
 
 
-def make_env(env_name: str, model_filename: str, render_mode: str = None) -> gym.Env:
-    env = gym.make(env_name, render_mode=render_mode)
-    env = gym.wrappers.RecordVideo(
-        env=env, video_folder="videos",
-        name_prefix="sac_per_{0}".format(model_filename)
-    )
-    return env
-
-
 def test(env: gym.Env, actor: GaussianPolicy, num_episodes: int) -> None:
     for i in range(num_episodes):
         episode_reward = 0  # cumulative_reward
@@ -40,7 +31,11 @@ def test(env: gym.Env, actor: GaussianPolicy, num_episodes: int) -> None:
 
 
 def main_play(num_episodes: int, env_name: str, model_filename: str) -> None:
-    env = make_env(env_name, model_filename, render_mode="rgb_array")
+    env = gym.make(env_name, render_mode="rgb_array")
+    env = gym.wrappers.RecordVideo(
+        env=env, video_folder="videos",
+        name_prefix="sac_per_{0}".format(model_filename)
+    )
 
     n_features = env.observation_space.shape[0]
     n_actions = env.action_space.shape[0]
@@ -55,7 +50,7 @@ def main_play(num_episodes: int, env_name: str, model_filename: str) -> None:
 
 
 if __name__ == "__main__":
-    NUM_EPISODES = 4
+    NUM_EPISODES = 2
     ENV_NAME = "BipedalWalkerHardcore-v3"
 
     if len(sys.argv) > 1:
